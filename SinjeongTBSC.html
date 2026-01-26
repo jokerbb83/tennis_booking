@@ -2,14 +2,19 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
     <title>신정교 테니스코트 예약</title>
     <style>
         :root {
             --tennis-green: #dfff4f;
             --bg-dark: #0f172a;
             --card-bg: #1e293b;
-            --visited-bg: #0f172a; /* 클릭 후 배경색 */
+            --visited-bg: #0f172a;
+            --check-blue: #3b82f6;
         }
 
         body { 
@@ -23,7 +28,7 @@
             min-height: 100vh;
         }
 
-        .container { width: 100%; max-width: 500px; }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; }
 
         h2 { 
             text-align: center; font-style: italic; font-weight: 900;
@@ -69,9 +74,20 @@
         }
         .add-btn:active { transform: scale(0.96); }
 
-        #urlList { list-style: none; padding: 0; }
+        .check-my-btn {
+            width: 100%; padding: 16px;
+            background-color: var(--check-blue);
+            color: white; border: none; border-radius: 12px;
+            cursor: pointer; font-weight: bold; font-size: 16px;
+            margin-top: 20px; margin-bottom: 30px;
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+            transition: 0.2s;
+        }
+        .check-my-btn:active { transform: scale(0.98); background-color: #2563eb; }
+
+        #urlList { list-style: none; padding: 0; margin: 0; }
         
-        /* 기본 리스트 아이템 스타일 */
         .url-item { 
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(5px);
@@ -81,7 +97,6 @@
             cursor: pointer; transition: all 0.3s ease;
         }
 
-        /* 클릭(방문) 후 스타일 변화 */
         .url-item.visited {
             background: var(--visited-bg);
             border-color: var(--tennis-green);
@@ -104,7 +119,7 @@
 
         .delete-btn { 
             background: #ef4444; color: white; border: none; 
-            width: 40px; height: 40px; border-radius: 10px; 
+            width: 44px; height: 44px; border-radius: 10px; 
             cursor: pointer; font-size: 20px; margin-left: 15px;
             display: flex; align-items: center; justify-content: center;
         }
@@ -137,9 +152,16 @@
     </div>
 
     <ul id="urlList"></ul>
+
+    <button class="check-my-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/foffice/ex/reservationMy/list.do', '_blank', 'width=800,height=900,scrollbars=yes');">
+        🔍 나의 예약 확인하기
+    </button>
 </div>
 
 <script>
+    // 중복 체크를 위한 목록
+    const addedItems = new Set();
+
     function addToList() {
         const year = document.getElementById('year').value;
         const month = document.getElementById('month').value;
@@ -151,24 +173,42 @@
 
         if (!year || !month || !day) return;
 
+        // 날짜와 코트ID를 조합해 고유한 키(Key) 생성
+        const itemKey = `${year}-${month}-${day}-${riIdx}`;
+
+        // 중복 체크
+        if (addedItems.has(itemKey)) {
+            alert("이미 리스트에 추가된 코트예요! 😊");
+            return;
+        }
+
         const url = `https://www.yangcheon.go.kr/reservation/reservation/foffice/ex/reservationCal/userForm.do?year=${year}&month=${month}&day=${day}&pageIndex=1&riIdx=${riIdx}&tab=R&timeweek=&restAt=`;
 
         const li = document.createElement('li');
         li.className = 'url-item';
+        li.dataset.key = itemKey; // 삭제할 때 쓰기 위해 저장
         
-        // 클릭 시 색상 변경 로직 추가
         li.innerHTML = `
             <div class="link-content" onclick="openAndMark(this, '${url}')">
                 <span class="court-name">${courtName}</span>
                 <span class="date-info">📅 ${year}년 ${month}월 ${day}일</span>
             </div>
-            <button class="delete-btn" onclick="event.stopPropagation(); this.parentElement.remove();">×</button>
+            <button class="delete-btn" onclick="removeItem(this)">×</button>
         `;
 
         urlList.insertBefore(li, urlList.firstChild);
+        addedItems.add(itemKey); // 추가된 목록에 등록
     }
 
-    // 새 창을 띄우고 부모 li에 'visited' 클래스를 추가하는 함수
+    // 리스트에서 항목 삭제
+    function removeItem(btn) {
+        event.stopPropagation();
+        const li = btn.parentElement;
+        const key = li.dataset.key;
+        addedItems.delete(key); // 중복 체크 목록에서도 삭제
+        li.remove();
+    }
+
     function openAndMark(element, url) {
         window.open(url, '_blank', 'width=800,height=900,scrollbars=yes');
         element.parentElement.classList.add('visited');
