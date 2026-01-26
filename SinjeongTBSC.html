@@ -58,13 +58,19 @@
 
         .row { display: flex; gap: 10px; margin-bottom: 12px; }
         
-        input, select { 
+        input[type="date"], select { 
             background: #334155; border: 1px solid #475569;
             color: white; padding: 15px; border-radius: 12px; 
             font-size: 16px; text-align: center; width: 100%; outline: none;
+            box-sizing: border-box;
         }
         
-        input:focus { border-color: var(--tennis-green); }
+        input[type="date"]::-webkit-calendar-picker-indicator {
+            background-color: var(--tennis-green);
+            padding: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
 
         .add-btn { 
             width: 100%; padding: 18px; 
@@ -82,9 +88,7 @@
             margin-top: 20px; margin-bottom: 30px;
             display: flex; align-items: center; justify-content: center;
             gap: 8px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
-            transition: 0.2s;
         }
-        .check-my-btn:active { transform: scale(0.98); background-color: #2563eb; }
 
         #urlList { list-style: none; padding: 0; margin: 0; }
         
@@ -109,12 +113,7 @@
         }
         
         .link-content { flex-grow: 1; }
-        
-        .court-name {
-            display: block; font-size: 12px;
-            color: var(--tennis-green); font-weight: bold; margin-bottom: 4px;
-        }
-
+        .court-name { display: block; font-size: 12px; color: var(--tennis-green); font-weight: bold; margin-bottom: 4px; }
         .date-info { font-size: 18px; font-weight: 700; color: white; }
 
         .delete-btn { 
@@ -137,9 +136,7 @@
     
     <div class="input-card">
         <div class="row">
-            <input type="number" id="year" value="2026">
-            <input type="number" id="month" value="2">
-            <input type="number" id="day" value="1">
+            <input type="date" id="targetDate">
         </div>
         <div class="row">
             <select id="court">
@@ -159,24 +156,33 @@
 </div>
 
 <script>
-    // 중복 체크를 위한 목록
+    const dateInput = document.getElementById('targetDate');
+    const today = new Date();
+    const offset = today.getTimezoneOffset() * 60000;
+    const localDate = new Date(today.getTime() - offset).toISOString().split('T')[0];
+    dateInput.value = localDate;
+
     const addedItems = new Set();
 
     function addToList() {
-        const year = document.getElementById('year').value;
-        const month = document.getElementById('month').value;
-        const day = document.getElementById('day').value;
+        const fullDate = dateInput.value; 
+        if (!fullDate) {
+            alert("날짜를 입력해주세요!");
+            return;
+        }
+
+        const dateParts = fullDate.split('-');
+        const year = dateParts[0];
+        const month = parseInt(dateParts[1]);
+        const day = parseInt(dateParts[2]);
+
         const courtSelect = document.getElementById('court');
         const riIdx = courtSelect.value;
         const courtName = courtSelect.options[courtSelect.selectedIndex].text;
         const urlList = document.getElementById('urlList');
 
-        if (!year || !month || !day) return;
-
-        // 날짜와 코트ID를 조합해 고유한 키(Key) 생성
         const itemKey = `${year}-${month}-${day}-${riIdx}`;
 
-        // 중복 체크
         if (addedItems.has(itemKey)) {
             alert("이미 리스트에 추가된 코트예요! 😊");
             return;
@@ -186,7 +192,7 @@
 
         const li = document.createElement('li');
         li.className = 'url-item';
-        li.dataset.key = itemKey; // 삭제할 때 쓰기 위해 저장
+        li.dataset.key = itemKey;
         
         li.innerHTML = `
             <div class="link-content" onclick="openAndMark(this, '${url}')">
@@ -197,15 +203,14 @@
         `;
 
         urlList.insertBefore(li, urlList.firstChild);
-        addedItems.add(itemKey); // 추가된 목록에 등록
+        addedItems.add(itemKey);
     }
 
-    // 리스트에서 항목 삭제
     function removeItem(btn) {
         event.stopPropagation();
         const li = btn.parentElement;
         const key = li.dataset.key;
-        addedItems.delete(key); // 중복 체크 목록에서도 삭제
+        addedItems.delete(key);
         li.remove();
     }
 
