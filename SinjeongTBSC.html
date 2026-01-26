@@ -58,25 +58,40 @@
 
         .row { display: flex; gap: 10px; margin-bottom: 12px; position: relative; }
         
-        input[type="date"], select { 
+        /* 날짜 입력창 중앙 정렬 강화 */
+        input[type="date"] { 
             background: #334155; border: 1px solid #475569;
             color: white; padding: 15px; border-radius: 12px; 
-            font-size: 16px; text-align: center; width: 100%; outline: none;
+            font-size: 16px; width: 100%; outline: none;
             box-sizing: border-box;
-            appearance: none; /* 기본 아이콘 숨김 */
-            -webkit-appearance: none;
-        }
+            
+            /* 중앙 정렬 핵심 속성 */
+            text-align: center; 
+            display: flex;
+            justify-content: center;
+            align-items: center;
 
-        /* 모바일에서 달력 아이콘 강제로 넣기 */
-        input[type="date"] {
+            appearance: none;
+            -webkit-appearance: none;
+
+            /* 아이콘 위치 살짝 조정 */
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%23dfff4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>');
             background-repeat: no-repeat;
             background-position: right 15px center;
-            background-size: 20px;
+            background-size: 18px;
         }
-        
-        /* 선택 화살표도 예쁘게 추가 (코트 선택창용) */
-        select {
+
+        /* 크롬/삼성 인터넷용 중앙 정렬 */
+        input[type="date"]::-webkit-date-and-time-value {
+            text-align: center;
+            height: 20px; /* 높이 고정으로 정렬 유지 */
+        }
+
+        select { 
+            background: #334155; border: 1px solid #475569;
+            color: white; padding: 15px; border-radius: 12px; 
+            font-size: 16px; text-align: center; width: 100%; outline: none;
+            -webkit-appearance: none;
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>');
             background-repeat: no-repeat;
             background-position: right 15px center;
