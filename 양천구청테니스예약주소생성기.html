@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>테니스 예약 프로</title>
+    <style>
+        :root {
+            --tennis-green: #dfff4f;
+            --bg-dark: #0f172a;
+            --card-bg: #1e293b;
+            --visited-bg: #0f172a;
+        }
+
+        body { 
+            font-family: 'Pretendard', -apple-system, sans-serif; 
+            background: linear-gradient(135deg, var(--bg-dark), #1e293b);
+            color: white;
+            display: flex; 
+            justify-content: center; 
+            padding: 20px 10px; 
+            margin: 0;
+            min-height: 100vh;
+            /* 모바일에서 텍스트 선택 방지 (앱 느낌) */
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        .container { width: 100%; max-width: 500px; }
+
+        h2 { 
+            text-align: center; font-style: italic; font-weight: 900;
+            letter-spacing: -1px; color: var(--tennis-green);
+            margin-bottom: 5px; text-transform: uppercase;
+        }
+
+        .sub-title {
+            text-align: center; font-size: 11px; color: #94a3b8;
+            margin-bottom: 25px; letter-spacing: 1px;
+        }
+        
+        .notice { 
+            background: rgba(223, 255, 79, 0.1);
+            border: 1px dashed var(--tennis-green);
+            color: var(--tennis-green);
+            text-align: center; font-size: 13px; padding: 12px; 
+            border-radius: 12px; margin-bottom: 20px; font-weight: bold;
+        }
+
+        .input-card {
+            background: var(--card-bg);
+            padding: 20px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 25px;
+        }
+
+        .row { display: flex; gap: 10px; margin-bottom: 12px; }
+        
+        input, select { 
+            background: #334155; border: 1px solid #475569;
+            color: white; padding: 15px; border-radius: 12px; 
+            font-size: 16px; text-align: center; width: 100%; outline: none;
+            -webkit-appearance: none; /* iOS 스타일 제거 */
+        }
+        
+        input:focus { border-color: var(--tennis-green); }
+
+        .add-btn { 
+            width: 100%; padding: 18px; 
+            background-color: var(--tennis-green); color: black; 
+            border: none; border-radius: 12px; cursor: pointer; 
+            font-weight: 900; font-size: 17px; transition: 0.2s;
+        }
+        .add-btn:active { transform: scale(0.96); opacity: 0.8; }
+
+        #urlList { list-style: none; padding: 0; }
+        
+        .url-item { 
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 18px; margin-bottom: 15px; border-radius: 16px; 
+            display: flex; align-items: center; justify-content: space-between;
+            cursor: pointer; transition: all 0.3s ease;
+        }
+
+        .url-item.visited {
+            background: var(--visited-bg);
+            border-color: var(--tennis-green);
+            opacity: 0.6;
+        }
+
+        .url-item.visited .date-info::after {
+            content: " ✓";
+            color: var(--tennis-green);
+        }
+        
+        .link-content { flex-grow: 1; }
+        
+        .court-name {
+            display: block; font-size: 12px;
+            color: var(--tennis-green); font-weight: bold; margin-bottom: 4px;
+        }
+
+        .date-info { font-size: 18px; font-weight: 700; color: white; }
+
+        .delete-btn { 
+            background: #ef4444; color: white; border: none; 
+            width: 44px; height: 44px; border-radius: 10px; 
+            cursor: pointer; font-size: 20px; margin-left: 15px;
+            display: flex; align-items: center; justify-content: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>TENNIS PRO</h2>
+    <div class="sub-title">신정교 테니스코트 예약 매니저</div>
+    
+    <div class="notice">
+        ⚡️ 로그인 상태를 먼저 확인하세요!
+    </div>
+    
+    <div class="input-card">
+        <div class="row">
+            <input type="number" id="year" value="2026" pattern="\d*">
+            <input type="number" id="month" value="2" pattern="\d*">
+            <input type="number" id="day" value="1" pattern="\d*">
+        </div>
+        <div class="row">
+            <select id="court">
+                <option value="RI001407">신정교 1코트</option>
+                <option value="RI001517">신정교 2코트</option>
+                <option value="RI001518">신정교 3코트</option>
+            </select>
+        </div>
+        <button class="add-btn" onclick="addToList()">리스트에 추가하기</button>
+    </div>
+
+    <ul id="urlList"></ul>
+</div>
+
+<script>
+    function addToList() {
+        const year = document.getElementById('year').value;
+        const month = document.getElementById('month').value;
+        const day = document.getElementById('day').value;
+        const courtSelect = document.getElementById('court');
+        const riIdx = courtSelect.value;
+        const courtName = courtSelect.options[courtSelect.selectedIndex].text;
+        const urlList = document.getElementById('urlList');
+
+        if (!year || !month || !day) return;
+
+        const url = `https://www.yangcheon.go.kr/reservation/reservation/foffice/ex/reservationCal/userForm.do?year=${year}&month=${month}&day=${day}&pageIndex=1&riIdx=${riIdx}&tab=R&timeweek=&restAt=`;
+
+        const li = document.createElement('li');
+        li.className = 'url-item';
+        
+        li.innerHTML = `
+            <div class="link-content" onclick="openAndMark(this, '${url}')">
+                <span class="court-name">${courtName}</span>
+                <span class="date-info">📅 ${year}.${month}.${day}</span>
+            </div>
+            <button class="delete-btn" onclick="event.stopPropagation(); this.parentElement.remove();">×</button>
+        `;
+
+        urlList.insertBefore(li, urlList.firstChild);
+    }
+
+    function openAndMark(element, url) {
+        // 앱 느낌을 내기 위해 새 창으로 띄우기
+        window.open(url, '_blank');
+        element.parentElement.classList.add('visited');
+    }
+</script>
+
+</body>
+</html>
