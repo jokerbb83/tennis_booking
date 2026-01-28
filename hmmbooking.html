@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>한미모스 테니스 클럽 관리</title>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        :root { --available: #81c784; --booked: #ef9a9a; --primary: #2c3e50; }
+        body { font-family: 'Pretendard', sans-serif; background-color: #f4f4f4; padding: 20px; color: #333; }
+        
+        .header-container { text-align: center; margin-bottom: 20px; }
+        .nav-controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px; }
+        .nav-btn { padding: 10px 15px; background: var(--primary); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 18px; }
+        .current-month { font-size: 24px; font-weight: bold; min-width: 150px; }
+        
+        .btn-group { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .action-btn { padding: 10px 15px; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
+        
+        /* 버튼 색상 구분 */
+        .btn-cal { background-color: #9c27b0; } /* 달력형: 보라 */
+        .btn-list { background-color: #673ab7; } /* 요약형: 진보라 */
+        .btn-copy { background-color: #4CAF50; } /* 복사: 녹색 */
+        .btn-save { background-color: #2196F3; } /* 백업: 파랑 */
+        .btn-load { background-color: #ff9800; } /* 불러오기: 주황 */
+
+        /* 캡처 영역들 */
+        #capture-calendar-area { background-color: #fff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1400px; margin: 0 auto; }
+        .club-header { text-align: center; margin-bottom: 20px; }
+        .club-header h1 { margin: 0; font-size: 28px; color: #2c3e50; }
+        .club-header p { margin: 5px 0 0; font-size: 16px; color: #666; font-weight: bold; }
+
+        /* 달력 그리드 */
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+        .day-label { text-align: center; font-weight: bold; padding: 10px; background: #eee; border-radius: 5px; }
+        .day-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px; min-height: 150px; }
+        .date-num { font-weight: bold; margin-bottom: 8px; display: block; border-bottom: 1px solid #f0f0f0; padding-bottom: 4px; }
+        .sun { color: #e53935; } .sat { color: #1e88e5; }
+        .court-row { display: flex; gap: 3px; margin-bottom: 4px; align-items: center; }
+        .time-label { font-size: 10px; width: 40px; color: #999; font-weight: bold; }
+        .court-btn { flex: 1; height: 24px; border: none; border-radius: 4px; background-color: var(--available); cursor: pointer; font-size: 10px; color: white; }
+        .court-btn.booked { background-color: var(--booked); color: #b71c1c; font-weight: bold; }
+
+        /* 요약형 숨겨진 영역 */
+        #capture-summary-temp { position: absolute; left: -9999px; top: 0; background: white; width: 450px; padding: 40px; border-radius: 20px; }
+        .summary-item { margin-bottom: 12px; padding: 12px; border-radius: 10px; background: #f9f9f9; border-left: 5px solid #2196F3; }
+        .summary-date { font-weight: bold; font-size: 17px; color: #333; margin-bottom: 4px; }
+        .summary-detail { font-size: 15px; color: #555; line-height: 1.5; }
+
+        /* 모달 */
+        #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+        .modal { background: white; padding: 25px; border-radius: 15px; width: 300px; text-align: center; }
+        .modal input { width: 85%; padding: 12px; margin: 20px 0; border: 1px solid #ddd; border-radius: 8px; text-align: center; font-size: 18px; }
+        .modal-buttons { display: flex; gap: 8px; }
+        .m-btn { flex: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
+        .m-save { background: #2196F3; } .m-delete { background: #f44336; } .m-cancel { background: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+<div class="header-container">
+    <div class="nav-controls">
+        <button class="nav-btn" onclick="changeMonth(-1)">◀</button>
+        <span class="current-month" id="month-display">2026. 02</span>
+        <button class="nav-btn" onclick="changeMonth(1)">▶</button>
+    </div>
+    
+    <div class="btn-group">
+        <button class="action-btn btn-cal" onclick="captureCalendarImage()">📸 달력형 저장</button>
+        <button class="action-btn btn-list" onclick="captureSummaryImage()">📝 요약형 저장</button>
+        <button class="action-btn btn-copy" onclick="copyToClipboard()">📋 텍스트 복사</button>
+        <button class="action-btn btn-save" onclick="exportData()">💾 백업 저장</button>
+        <button class="action-btn btn-load" onclick="document.getElementById('fileInput').click()">📂 불러오기</button>
+        <input type="file" id="fileInput" style="display:none" onchange="importData(event)">
+    </div>
+</div>
+
+<div id="capture-calendar-area">
+    <div class="club-header">
+        <h1>한미모스 테니스 클럽</h1>
+        <p class="sub-date-text">신정교 2월 일정</p>
+    </div>
+    <div class="calendar-grid" id="calendar"></div>
+</div>
+
+<div id="capture-summary-temp">
+    <div class="club-header">
+        <h1>한미모스 테니스 클럽</h1>
+        <p class="sub-date-text">신정교 2월 예약 요약</p>
+    </div>
+    <div id="summary-list-content"></div>
+</div>
+
+<div id="modal-overlay">
+    <div class="modal">
+        <h3 id="modal-title">코트 예약</h3>
+        <input type="text" id="modal-input" placeholder="이름 입력">
+        <div class="modal-buttons" id="modal-btn-container"></div>
+    </div>
+</div>
+
+<script>
+    let currentYear = 2026;
+    let currentMonth = 2; 
+    let reservationData = JSON.parse(localStorage.getItem('tennisData')) || {};
+    let currentVersion = parseInt(localStorage.getItem('backupVersion')) || 1;
+    let activeKey = null;
+
+    const timeSlots = ["08-10", "10-12", "12-14", "14-16", "16-18"];
+
+    function renderCalendar() {
+        const calendar = document.getElementById('calendar');
+        const monthText = `${currentYear}. ${String(currentMonth).padStart(2, '0')}`;
+        document.getElementById('month-display').innerText = monthText;
+        
+        // 캡처용 텍스트 업데이트
+        const subTexts = document.querySelectorAll('.sub-date-text');
+        subTexts.forEach(el => el.innerText = `신정교 ${currentMonth}월 일정`);
+
+        calendar.innerHTML = ''; 
+        ['일','월','화','수','목','금','토'].forEach((day, i) => {
+            const div = document.createElement('div');
+            div.className = `day-label ${i===0?'sun':i===6?'sat':''}`;
+            div.innerText = day;
+            calendar.appendChild(div);
+        });
+
+        const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
+        const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+        for (let i = 0; i < firstDay; i++) calendar.appendChild(document.createElement('div'));
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(currentYear, currentMonth - 1, d);
+            const card = document.createElement('div');
+            card.className = 'day-card';
+            const dateClass = dateObj.getDay() === 0 ? 'sun' : (dateObj.getDay() === 6 ? 'sat' : '');
+            card.innerHTML = `<span class="date-num ${dateClass}">${d}일</span>`;
+            
+            timeSlots.forEach(time => {
+                const row = document.createElement('div');
+                row.className = 'court-row';
+                const start = time.split('-')[0];
+                row.innerHTML = `<span class="time-label">${start}시</span>`;
+                for (let c = 1; c <= 3; c++) {
+                    const btn = document.createElement('button');
+                    btn.className = 'court-btn';
+                    const key = `${currentYear}-${currentMonth}-${d}-${start}-${c}`;
+                    if (reservationData[key]) {
+                        btn.innerText = reservationData[key];
+                        btn.classList.add('booked');
+                    } else { btn.innerText = `C${c}`; }
+                    btn.onclick = () => openModal(key, !!reservationData[key]);
+                    row.appendChild(btn);
+                }
+                card.appendChild(row);
+            });
+            calendar.appendChild(card);
+        }
+    }
+
+    // 📸 1. 달력형 이미지 저장
+    function captureCalendarImage() {
+        const target = document.getElementById('capture-calendar-area');
+        html2canvas(target, { scale: 2 }).then(canvas => {
+            saveImage(canvas, `한미모스_달력_${currentMonth}월.png`);
+        });
+    }
+
+    // 📸 2. 요약형 이미지 저장
+    function captureSummaryImage() {
+        const prefix = `${currentYear}-${currentMonth}-`;
+        const keys = Object.keys(reservationData).filter(k => k.startsWith(prefix)).sort((a,b) => {
+            const pa = a.split('-').map(Number); const pb = b.split('-').map(Number);
+            return pa[2] - pb[2] || pa[3] - pb[3];
+        });
+
+        if (keys.length === 0) return alert("예약이 없어요!");
+
+        const content = document.getElementById('summary-list-content');
+        content.innerHTML = "";
+        const summary = {};
+        keys.forEach(k => {
+            const [y, m, d, t, c] = k.split('-');
+            const dateStr = `${m}월 ${d}일`;
+            const info = `• [${t.padStart(2, '0')}시] 코트 ${c} : ${reservationData[k]}`;
+            if (!summary[dateStr]) summary[dateStr] = [];
+            summary[dateStr].push(info);
+        });
+
+        for (const [date, details] of Object.entries(summary)) {
+            const item = document.createElement('div');
+            item.className = 'summary-item';
+            item.innerHTML = `<div class="summary-date">${date}</div><div class="summary-detail">${details.join('<br>')}</div>`;
+            content.appendChild(item);
+        }
+
+        const target = document.getElementById('capture-summary-temp');
+        html2canvas(target, { scale: 2 }).then(canvas => {
+            saveImage(canvas, `한미모스_요약_${currentMonth}월.png`);
+        });
+    }
+
+    function saveImage(canvas, filename) {
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL();
+        link.click();
+    }
+
+    // --- 데이터 관리 로직 ---
+    function openModal(key, isBooked) {
+        activeKey = key;
+        const input = document.getElementById('modal-input');
+        const container = document.getElementById('modal-btn-container');
+        input.value = reservationData[key] || "";
+        container.innerHTML = isBooked ? 
+            `<button class="m-btn m-save" onclick="handleSave()">수정</button><button class="m-btn m-delete" onclick="handleDelete()">삭제</button><button class="m-btn m-cancel" onclick="closeModal()">취소</button>` :
+            `<button class="m-btn m-save" onclick="handleSave()">등록</button><button class="m-btn m-cancel" onclick="closeModal()">취소</button>`;
+        document.getElementById('modal-overlay').style.display = 'flex';
+        input.focus();
+    }
+    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+    function handleSave() {
+        const name = document.getElementById('modal-input').value.trim();
+        if (name) { reservationData[activeKey] = name.substring(0, 2); save(); }
+    }
+    function handleDelete() { if(confirm("삭제할까?")) { delete reservationData[activeKey]; save(); } }
+    function save() { localStorage.setItem('tennisData', JSON.stringify(reservationData)); closeModal(); renderCalendar(); }
+    function changeMonth(diff) { currentMonth += diff; if (currentMonth > 12) { currentMonth = 1; currentYear++; } else if (currentMonth < 1) { currentMonth = 12; currentYear--; } renderCalendar(); }
+    
+    function exportData() {
+        const now = new Date();
+        const dateStr = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+        const fileName = `TB_backup_${dateStr}_v${String(currentVersion).padStart(2,'0')}.json`;
+        const link = document.createElement('a');
+        link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify(reservationData));
+        link.download = fileName; link.click();
+        currentVersion++; localStorage.setItem('backupVersion', currentVersion);
+    }
+    function importData(e) {
+        const reader = new FileReader();
+        reader.onload = (le) => { reservationData = JSON.parse(le.target.result); localStorage.setItem('tennisData', JSON.stringify(reservationData)); renderCalendar(); };
+        reader.readAsText(e.target.files[0]);
+    }
+    function copyToClipboard() {
+        const prefix = `${currentYear}-${currentMonth}-`;
+        const keys = Object.keys(reservationData).filter(k => k.startsWith(prefix)).sort();
+        if (keys.length === 0) return alert("예약이 없어!");
+        let text = `🎾 한미모스 테니스 클럽 ${currentMonth}월 일정\n\n`;
+        const summary = {};
+        keys.forEach(k => {
+            const [y, m, d, t, c] = k.split('-');
+            const info = `${m}/${d} [${t.padStart(2, '0')}시]`;
+            if (!summary[info]) summary[info] = { c: [], n: [] };
+            summary[info].c.push(c); summary[info].n.push(reservationData[k]);
+        });
+        for (const [key, val] of Object.entries(summary)) { text += `${key} 코트${val.c.join(',')} : ${val.n.join(',')}\n`; }
+        navigator.clipboard.writeText(text).then(() => alert("텍스트 복사 완료!"));
+    }
+    renderCalendar();
+</script>
+
+</body>
+</html>
