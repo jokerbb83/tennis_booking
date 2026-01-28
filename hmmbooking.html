@@ -15,7 +15,6 @@
         .nav-btn { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 20px; }
         .current-month { font-size: 26px; font-weight: 800; min-width: 160px; }
         
-        /* 🌈 무지개 버튼 그룹 (PC 기준) */
         .btn-group { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
         .action-btn { 
             padding: 12px 18px; 
@@ -28,9 +27,6 @@
             transition: all 0.2s;
             box-shadow: 0 3px 0 rgba(0,0,0,0.1);
         }
-        .action-btn:hover { filter: brightness(1.1); transform: translateY(-1px); }
-        .action-btn:active { transform: translateY(1px); box-shadow: none; }
-
         .btn-cal { background-color: #ff5e57; }
         .btn-list { background-color: #ff9f43; }
         .btn-copy { background-color: #feca57; color: #574b1f; }
@@ -38,57 +34,43 @@
         .btn-save { background-color: #54a0ff; }
         .btn-load { background-color: #a29bfe; }
 
-        /* 달력 영역 (PC 기준) */
         #capture-calendar-area { background-color: #fff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1400px; margin: 0 auto; box-sizing: border-box; }
         .club-header { text-align: center; margin-bottom: 20px; }
-        .club-header h1 { margin: 0; font-size: 32px; color: #2c3e50; }
-        .club-header p { margin: 5px 0 0; font-size: 18px; color: #666; font-weight: bold; }
-
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
         .day-label { text-align: center; font-weight: bold; padding: 12px; background: #eee; border-radius: 5px; font-size: 16px; }
-        .day-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px; min-height: 150px; position: relative; }
+        .day-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px; min-height: 150px; }
         
         .date-num { font-weight: bold; margin-bottom: 8px; display: block; border-bottom: 1px solid #f0f0f0; padding-bottom: 4px; font-size: 15px; }
-        .holiday-name { font-size: 11px; margin-left: 5px; font-weight: normal; }
         .sun, .is-holiday { color: var(--holiday); } 
         .sat { color: #1e88e5; }
         
-        .court-row { display: flex; gap: 4px; margin-bottom: 4px; align-items: center; }
-        .time-label { font-size: 11px; width: 40px; color: #999; font-weight: bold; }
-        .court-btn { flex: 1; height: 26px; border: none; border-radius: 4px; background-color: var(--available); cursor: pointer; font-size: 11px; color: white; font-weight: bold; }
+        .court-row { display: flex; gap: 4px; margin-bottom: 4px; align-items: center; width: 100%; }
+        .time-label { font-size: 11px; width: 35px; color: #999; font-weight: bold; flex-shrink: 0; }
+        .court-btn { flex: 1; height: 26px; border: none; border-radius: 4px; background-color: var(--available); cursor: pointer; font-size: 11px; color: white; font-weight: bold; min-width: 0; }
         .court-btn.booked { background-color: var(--booked); color: #b71c1c; }
 
-        /* 📱 모바일 환경 전용 스타일 (768px 이하일 때만 적용) */
+        /* 📱 모바일 환경 최적화 (코트 3개 노출) */
         @media screen and (max-width: 768px) {
             body { padding: 10px; }
-            .nav-btn { padding: 8px 15px; font-size: 16px; }
-            .current-month { font-size: 20px; min-width: 120px; }
-            
             .btn-group { gap: 5px; }
-            .action-btn { padding: 10px 12px; font-size: 11px; flex: 1 1 30%; }
+            .action-btn { padding: 8px 10px; font-size: 11px; flex: 1 1 30%; }
 
-            #capture-calendar-area { padding: 15px; border-radius: 10px; }
-            .club-header h1 { font-size: 22px; }
-            .club-header p { font-size: 14px; }
-
-            .calendar-grid { gap: 4px; }
-            .day-label { padding: 8px 0; font-size: 12px; }
-            .day-card { min-height: 100px; padding: 4px; }
-            .date-num { font-size: 11px; margin-bottom: 4px; }
-            .holiday-name { font-size: 9px; display: block; margin-left: 0; }
+            #capture-calendar-area { padding: 10px; }
+            .calendar-grid { gap: 3px; }
+            .day-label { padding: 8px 0; font-size: 11px; }
+            .day-card { min-height: 110px; padding: 3px; }
+            .date-num { font-size: 10px; margin-bottom: 4px; }
             
-            .time-label { width: 22px; font-size: 8px; }
-            .court-btn { height: 18px; font-size: 8px; border-radius: 2px; }
+            /* 시간에서 '시' 제거 및 간격 축소 */
+            .time-label { width: 14px; font-size: 8px; text-align: left; }
+            .time-label::after { content: ""; } /* '시'를 지우기 위한 처리 (JS에서 처리함) */
+            
+            .court-row { gap: 1.5px; }
+            .court-btn { height: 18px; font-size: 7px; border-radius: 2px; }
         }
 
-        /* 캡처용/모달 레이아웃 유지 */
-        #capture-summary-temp { position: absolute; left: -9999px; top: 0; background: white; width: 450px; padding: 40px; }
-        .summary-item { margin-bottom: 12px; padding: 12px; border-radius: 10px; background: #f9f9f9; border-left: 5px solid #2196F3; }
         #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
-        .modal { background: white; padding: 25px; border-radius: 15px; width: 300px; text-align: center; }
-        .modal input { width: 85%; padding: 12px; margin: 20px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 18px; text-align: center; }
-        .m-btn { flex: 1; padding: 10px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; color: white; }
-        .m-save { background: #2196F3; } .m-delete { background: #f44336; } .m-cancel { background: #7f8c8d; }
+        .modal { background: white; padding: 25px; border-radius: 15px; width: 280px; text-align: center; }
     </style>
 </head>
 <body>
@@ -101,11 +83,11 @@
     </div>
     
     <div class="btn-group">
-        <button class="action-btn btn-cal" onclick="captureCalendarImage()">📸 달력형 저장</button>
-        <button class="action-btn btn-list" onclick="captureSummaryImage()">📝 요약형 저장</button>
-        <button class="action-btn btn-copy" onclick="copyToClipboard()">📋 텍스트 복사</button>
-        <button class="action-btn btn-excel" onclick="downloadExcel()">📊 엑셀 저장</button>
-        <button class="action-btn btn-save" onclick="exportData()">💾 백업 저장</button>
+        <button class="action-btn btn-cal" onclick="captureCalendarImage()">📸 달력형</button>
+        <button class="action-btn btn-list" onclick="captureSummaryImage()">📝 요약형</button>
+        <button class="action-btn btn-copy" onclick="copyToClipboard()">📋 복사</button>
+        <button class="action-btn btn-excel" onclick="downloadExcel()">📊 엑셀</button>
+        <button class="action-btn btn-save" onclick="exportData()">💾 백업</button>
         <button class="action-btn btn-load" onclick="document.getElementById('fileInput').click()">📂 불러오기</button>
         <input type="file" id="fileInput" style="display:none" onchange="importData(event)">
     </div>
@@ -113,38 +95,34 @@
 
 <div id="capture-calendar-area">
     <div class="club-header">
-        <h1>한미모스 테니스 클럽</h1>
-        <p class="sub-date-text"></p>
+        <h1 style="margin:0; font-size: 24px;">한미모스 테니스 클럽</h1>
+        <p class="sub-date-text" style="margin:5px 0 15px; font-weight: bold;"></p>
     </div>
     <div class="calendar-grid" id="calendar"></div>
+</div>
+
+<div id="modal-overlay">
+    <div class="modal">
+        <h3 id="modal-title">코트 예약</h3>
+        <input type="text" id="modal-input" style="width:100%; padding:10px; margin:15px 0; box-sizing:border-box;">
+        <div style="display:flex; gap:5px;">
+            <button onclick="handleSave()" style="flex:1; padding:10px; background:#2196F3; color:white; border:none; border-radius:5px;">저장</button>
+            <button onclick="closeModal()" style="flex:1; padding:10px; background:#7f8c8d; color:white; border:none; border-radius:5px;">취소</button>
+        </div>
+    </div>
 </div>
 
 <script>
     let currentYear = 2026;
     let currentMonth = 2; 
     let reservationData = JSON.parse(localStorage.getItem('tennisData')) || {};
-    let currentVersion = parseInt(localStorage.getItem('backupVersion')) || 1;
-    let activeKey = null;
     const timeSlots = ["08-10", "10-12", "12-14", "14-16", "16-18"];
-    const lunarHolidays = { 2025: { seollal: "1-29", chuseok: "10-6" }, 2026: { seollal: "2-17", chuseok: "9-25" }, 2027: { seollal: "2-7", chuseok: "9-15" } };
-
-    function getHolidays(year) {
-        let holidayList = { "1-1":"신정", "3-1":"삼일절", "5-5":"어린이날", "6-6":"현충일", "8-15":"광복절", "10-3":"개천절", "10-9":"한글날", "12-25":"성탄절", "12-12":"창립기념일 ★" };
-        const lunar = lunarHolidays[year];
-        if (lunar) {
-            [lunar.seollal, lunar.chuseok].forEach(d => {
-                let [m, day] = d.split('-').map(Number);
-                holidayList[`${m}-${day}`] = "명절";
-            });
-        }
-        return holidayList;
-    }
 
     function renderCalendar() {
         const calendar = document.getElementById('calendar');
         document.getElementById('month-display').innerText = `${currentYear}. ${String(currentMonth).padStart(2, '0')}`;
-        const currentHolidays = getHolidays(currentYear);
         document.querySelectorAll('.sub-date-text').forEach(el => el.innerText = `신정교 ${currentMonth}월 일정`);
+        
         calendar.innerHTML = ''; 
         ['일','월','화','수','목','금','토'].forEach((day, i) => {
             const div = document.createElement('div');
@@ -152,29 +130,37 @@
             div.innerText = day;
             calendar.appendChild(div);
         });
+
         const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
         const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+        const isMobile = window.innerWidth <= 768;
+
         for (let i = 0; i < firstDay; i++) calendar.appendChild(document.createElement('div'));
+
         for (let d = 1; d <= daysInMonth; d++) {
             const dateObj = new Date(currentYear, currentMonth - 1, d);
             const card = document.createElement('div');
             card.className = 'day-card';
-            const holidayKey = `${currentMonth}-${d}`;
-            const holidayName = currentHolidays[holidayKey] || "";
-            const dateClass = (dateObj.getDay() === 0 || holidayName) ? 'sun' : (dateObj.getDay() === 6 ? 'sat' : '');
-            card.innerHTML = `<span class="date-num ${dateClass}">${d}일${holidayName ? `<span class="holiday-name">(${holidayName})</span>` : ''}</span>`;
+            
+            const dateClass = dateObj.getDay() === 0 ? 'sun' : (dateObj.getDay() === 6 ? 'sat' : '');
+            card.innerHTML = `<span class="date-num ${dateClass}">${d}일</span>`;
+
             timeSlots.forEach(time => {
                 const row = document.createElement('div');
                 row.className = 'court-row';
                 const start = time.split('-')[0];
-                row.innerHTML = `<span class="time-label">${start}시</span>`;
+                
+                // 모바일일 때는 '시'를 빼고 숫자만 표시
+                const timeText = isMobile ? start : start + '시';
+                row.innerHTML = `<span class="time-label">${timeText}</span>`;
+
                 for (let c = 1; c <= 3; c++) {
                     const btn = document.createElement('button');
                     btn.className = 'court-btn';
                     const key = `${currentYear}-${currentMonth}-${d}-${start}-${c}`;
-                    btn.innerText = reservationData[key] ? reservationData[key] : `C${c}`;
+                    btn.innerText = reservationData[key] || `C${c}`;
                     if (reservationData[key]) btn.classList.add('booked');
-                    btn.onclick = () => openModal(key, !!reservationData[key]);
+                    btn.onclick = () => openModal(key);
                     row.appendChild(btn);
                 }
                 card.appendChild(row);
@@ -183,26 +169,26 @@
         }
     }
 
-    function openModal(key, isBooked) {
+    let activeKey = null;
+    function openModal(key) {
         activeKey = key;
-        const name = prompt("예약자 이름 (2글자 권장):", reservationData[key] || "");
-        if (name !== null) {
-            if (name.trim() === "") delete reservationData[activeKey];
-            else reservationData[activeKey] = name.substring(0, 2);
-            localStorage.setItem('tennisData', JSON.stringify(reservationData));
-            renderCalendar();
-        }
+        document.getElementById('modal-input').value = reservationData[key] || "";
+        document.getElementById('modal-overlay').style.display = 'flex';
     }
-
+    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+    function handleSave() {
+        const val = document.getElementById('modal-input').value.trim();
+        if (val) reservationData[activeKey] = val.substring(0, 2);
+        else delete reservationData[activeKey];
+        localStorage.setItem('tennisData', JSON.stringify(reservationData));
+        closeModal();
+        renderCalendar();
+    }
     function changeMonth(diff) { currentMonth += diff; if (currentMonth > 12) { currentMonth = 1; currentYear++; } else if (currentMonth < 1) { currentMonth = 12; currentYear--; } renderCalendar(); }
     
-    // 나머지 헬퍼 함수들(capture, excel 등)은 이전과 로직 동일
-    function captureCalendarImage() { html2canvas(document.getElementById('capture-calendar-area'), { scale: 2 }).then(canvas => {
-        const link = document.createElement('a'); link.download = `한미모스_${currentMonth}월.png`; link.href = canvas.toDataURL(); link.click();
-    });}
-    
+    // 윈도우 크기 바뀔 때 리렌더링 (모바일/PC 전환 대응)
+    window.addEventListener('resize', renderCalendar);
     renderCalendar();
 </script>
-
 </body>
 </html>
