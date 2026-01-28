@@ -2,68 +2,70 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>한미모스 테니스 클럽 관리</title>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root { --available: #81c784; --booked: #ef9a9a; --primary: #2c3e50; --holiday: #e53935; }
-        body { font-family: 'Pretendard', sans-serif; background-color: #f4f4f4; padding: 20px; color: #333; margin: 0; }
+        body { font-family: 'Pretendard', sans-serif; background-color: #f4f4f4; padding: 20px; color: #333; margin: 0; overflow-x: hidden; }
         
-        /* 헤더 및 버튼 그룹 */
-        .header-container { text-align: center; margin-bottom: 20px; }
-        .nav-controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin-bottom: 20px; }
-        .nav-btn { padding: 10px 20px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 20px; }
-        .current-month { font-size: 26px; font-weight: 800; min-width: 160px; }
+        /* 헤더 및 컨트롤 */
+        .header-container { text-align: center; margin-bottom: 15px; }
+        .nav-controls { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 15px; }
+        .nav-btn { padding: 8px 15px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px; }
+        .current-month { font-size: 22px; font-weight: 800; min-width: 130px; }
         
-        .btn-group { display: flex; justify-content: center; gap: 8px; margin-bottom: 30px; flex-wrap: wrap; }
+        .btn-group { display: flex; justify-content: center; gap: 6px; margin-bottom: 20px; flex-wrap: wrap; }
         .action-btn { 
-            padding: 10px 15px; color: white; border: none; border-radius: 8px; 
-            cursor: pointer; font-weight: 700; font-size: 13px; transition: all 0.2s;
+            padding: 10px 12px; color: white; border: none; border-radius: 8px; 
+            cursor: pointer; font-weight: 700; font-size: 12px; transition: all 0.2s;
             box-shadow: 0 3px 0 rgba(0,0,0,0.1);
         }
         .btn-cal { background-color: #ff5e57; } .btn-list { background-color: #ff9f43; }
         .btn-copy { background-color: #feca57; color: #574b1f; } .btn-excel { background-color: #1dd1a1; }
         .btn-save { background-color: #54a0ff; } .btn-load { background-color: #a29bfe; }
 
-        /* 달력 메인 */
-        #capture-calendar-area { background-color: #fff; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 1400px; margin: 0 auto; box-sizing: border-box; }
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
-        .day-label { text-align: center; font-weight: bold; padding: 12px; background: #eee; border-radius: 5px; font-size: 16px; }
-        .day-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px; min-height: 150px; }
+        /* 핏 최적화 달력 영역 */
+        #capture-calendar-area { 
+            background-color: #fff; padding: 15px; border-radius: 12px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+            max-width: 100%; margin: 0 auto; box-sizing: border-box; 
+        }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; width: 100%; }
+        .day-label { text-align: center; font-weight: bold; padding: 8px 0; background: #f8f8f8; border-radius: 4px; font-size: 13px; }
+        .day-card { background: #fff; border: 1px solid #eee; border-radius: 6px; padding: 4px; min-height: 120px; box-sizing: border-box; }
         
-        .date-num { font-weight: bold; margin-bottom: 8px; display: block; border-bottom: 1px solid #f0f0f0; padding-bottom: 4px; font-size: 15px; }
+        .date-num { font-weight: bold; margin-bottom: 5px; display: block; border-bottom: 1px solid #f9f9f9; padding-bottom: 2px; font-size: 12px; }
         .sun { color: var(--holiday); } .sat { color: #1e88e5; }
         
-        /* 코트 배치 */
-        .court-row { display: flex; gap: 4px; margin-bottom: 4px; align-items: center; width: 100%; }
-        .time-label { font-size: 11px; width: 35px; color: #999; font-weight: bold; flex-shrink: 0; }
-        .court-btn { flex: 1; height: 26px; border: none; border-radius: 4px; background-color: var(--available); cursor: pointer; font-size: 10px; color: white; font-weight: bold; min-width: 0; }
+        /* 코트 행 레이아웃 */
+        .court-row { display: flex; gap: 2px; margin-bottom: 3px; align-items: center; width: 100%; }
+        .time-label { font-size: 10px; width: 30px; color: #aaa; font-weight: bold; flex-shrink: 0; }
+        .court-btn { flex: 1; height: 22px; border: none; border-radius: 3px; background-color: var(--available); cursor: pointer; font-size: 9px; color: white; font-weight: bold; min-width: 0; }
         .court-btn.booked { background-color: var(--booked); color: #b71c1c; }
 
-        /* 📱 모바일 환경 최적화 (768px 이하) */
+        /* 📱 초강력 모바일 핏 최적화 (768px 이하) */
         @media screen and (max-width: 768px) {
             body { padding: 5px; }
-            .action-btn { padding: 8px 5px; font-size: 10px; flex: 1 1 30%; }
-            #capture-calendar-area { padding: 8px; }
-            .calendar-grid { gap: 2px; }
-            .day-label { padding: 6px 0; font-size: 11px; }
-            .day-card { min-height: 100px; padding: 3px; }
-            .date-num { font-size: 11px; margin-bottom: 4px; }
+            #capture-calendar-area { padding: 6px; border-radius: 8px; }
+            .calendar-grid { gap: 1.5px; }
+            .day-label { font-size: 10px; padding: 5px 0; }
+            .day-card { min-height: 90px; padding: 2px; }
+            .date-num { font-size: 10px; margin-bottom: 3px; }
 
-            /* 가로폭 확보를 위한 핵심 설정 */
-            .time-label { width: 15px; font-size: 9px; margin-right: 2px; text-align: left; }
-            .court-row { gap: 1.5px; }
+            /* 시간 라벨 폭을 더 줄임 (숫자만 표시) */
+            .time-label { width: 12px; font-size: 8px; margin-right: 1px; }
+            .court-row { gap: 1px; }
             
-            /* 모바일에서 버튼 안의 기본 글자(C1, C2, C3)를 숨김 */
+            /* 모바일 전용: 버튼 안의 'C1' 등 텍스트 제거하여 핏 최적화 */
             .court-btn { 
-                height: 18px; 
-                font-size: 0; /* 글자를 안 보이게 함 */
-                border-radius: 2px; 
+                height: 16px; 
+                font-size: 0; /* 평소엔 글자 숨김 */
             }
-            /* 예약 정보가 있을 때만 글자 크기를 살려서 이름이 보이게 함 */
+            /* 예약자가 있을 때만 글자 크기를 살려 이름 표시 */
             .court-btn.booked { 
-                font-size: 8px; 
+                font-size: 7px; 
                 color: #b71c1c; 
             }
         }
@@ -79,20 +81,18 @@
     </div>
     
     <div class="btn-group">
-        <button class="action-btn btn-cal" onclick="captureCalendarImage()">📸 달력형</button>
-        <button class="action-btn btn-list" onclick="captureSummaryImage()">📝 요약형</button>
-        <button class="action-btn btn-copy" onclick="copyToClipboard()">📋 복사</button>
-        <button class="action-btn btn-excel" onclick="downloadExcel()">📊 엑셀</button>
-        <button class="action-btn btn-save" onclick="exportData()">💾 백업</button>
+        <button class="action-btn btn-cal" onclick="captureCalendarImage()">📸 달력저장</button>
+        <button class="action-btn btn-excel" onclick="downloadExcel()">📊 엑셀저장</button>
+        <button class="action-btn btn-save" onclick="exportData()">💾 백업저장</button>
         <button class="action-btn btn-load" onclick="document.getElementById('fileInput').click()">📂 불러오기</button>
         <input type="file" id="fileInput" style="display:none" onchange="importData(event)">
     </div>
 </div>
 
 <div id="capture-calendar-area">
-    <div style="text-align: center; margin-bottom: 15px;">
-        <h1 style="margin:0; font-size: 22px;">한미모스 테니스 클럽</h1>
-        <p class="sub-date-text" style="margin:5px 0 0; font-weight: bold; color: #666;"></p>
+    <div style="text-align: center; margin-bottom: 10px;">
+        <h1 style="margin:0; font-size: 18px; color: #2c3e50;">한미모스 테니스 클럽</h1>
+        <p class="sub-date-text" style="margin:3px 0 0; font-size: 12px; font-weight: bold; color: #7f8c8d;"></p>
     </div>
     <div class="calendar-grid" id="calendar"></div>
 </div>
@@ -134,7 +134,7 @@
                 row.className = 'court-row';
                 const start = time.split('-')[0];
                 
-                // 모바일에서는 '시' 없이 숫자만
+                // 모바일에서는 '08', PC에서는 '08시'
                 const displayTime = isMobile ? start : start + '시';
                 row.innerHTML = `<span class="time-label">${displayTime}</span>`;
 
@@ -143,11 +143,18 @@
                     btn.className = 'court-btn';
                     const key = `${currentYear}-${currentMonth}-${d}-${start}-${c}`;
                     
-                    // 예약이 있으면 이름 표시, 없으면 기본 텍스트(모바일은 font-size:0으로 숨겨짐)
                     btn.innerText = reservationData[key] || `C${c}`;
                     if (reservationData[key]) btn.classList.add('booked');
                     
-                    btn.onclick = () => openModal(key);
+                    btn.onclick = () => {
+                        const name = prompt("예약자 성함 (2글자):", reservationData[key] || "");
+                        if (name !== null) {
+                            if (name.trim() === "") delete reservationData[key];
+                            else reservationData[key] = name.substring(0, 2);
+                            localStorage.setItem('tennisData', JSON.stringify(reservationData));
+                            renderCalendar();
+                        }
+                    };
                     row.appendChild(btn);
                 }
                 card.appendChild(row);
@@ -156,17 +163,24 @@
         }
     }
 
-    function openModal(key) {
-        const name = prompt("예약자 이름 (2글자):", reservationData[key] || "");
-        if (name !== null) {
-            if (name.trim() === "") delete reservationData[key];
-            else reservationData[key] = name.substring(0, 2);
-            localStorage.setItem('tennisData', JSON.stringify(reservationData));
-            renderCalendar();
-        }
+    function captureCalendarImage() {
+        html2canvas(document.getElementById('capture-calendar-area'), { 
+            scale: 2,
+            useCORS: true
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `한미모스_달력_${currentMonth}월.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        });
     }
 
-    function changeMonth(diff) { currentMonth += diff; if (currentMonth > 12) { currentMonth = 1; currentYear++; } else if (currentMonth < 1) { currentMonth = 12; currentYear--; } renderCalendar(); }
+    function changeMonth(diff) {
+        currentMonth += diff;
+        if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+        else if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+        renderCalendar();
+    }
     
     window.addEventListener('resize', renderCalendar);
     renderCalendar();
