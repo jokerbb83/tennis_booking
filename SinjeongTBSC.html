@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0f172a">
     <title>신정교 테니스코트 예약</title>
     <style>
@@ -15,7 +14,11 @@
             --card-bg: #1e293b;
             --visited-bg: #0f172a;
             --check-blue: #3b82f6;
+            --slot-bg: #334155;
+            --slot-hover: #3d5068;
         }
+
+        * { box-sizing: border-box; }
 
         body { 
             font-family: 'Pretendard', -apple-system, sans-serif; 
@@ -28,12 +31,14 @@
             min-height: 100vh;
         }
 
-        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; }
+        .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; transition: max-width 0.3s ease; }
+        .container.cal-mode { max-width: 900px; }
 
         h2 { 
             text-align: center; font-style: italic; font-weight: 900;
             letter-spacing: -1px; color: var(--tennis-green);
             margin-bottom: 5px; text-transform: uppercase;
+            font-size: clamp(20px, 5vw, 28px);
         }
 
         .sub-title {
@@ -49,6 +54,25 @@
             border-radius: 12px; margin-bottom: 20px; font-weight: bold;
         }
 
+        /* ===== 탭 스타일 ===== */
+        .tab-group {
+            display: flex; gap: 6px; margin-bottom: 20px;
+        }
+        .tab-btn {
+            flex: 1; padding: 13px 8px;
+            background: rgba(255,255,255,0.07);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px; color: #94a3b8;
+            font-size: 14px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: var(--tennis-green);
+            border-color: var(--tennis-green);
+            color: #000;
+        }
+
+        /* ===== 기존 입력폼 ===== */
         .input-card {
             background: var(--card-bg);
             padding: 20px; border-radius: 20px;
@@ -62,25 +86,19 @@
             background: #334155; border: 1px solid #475569;
             color: white; padding: 15px; border-radius: 12px; 
             font-size: 16px; text-align: center; width: 100%; outline: none;
-            box-sizing: border-box;
-            appearance: none;
-            -webkit-appearance: none;
+            appearance: none; -webkit-appearance: none;
         }
 
         input[type="date"] {
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%23dfff4f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>');
-            background-repeat: no-repeat;
-            background-position: right 15px center;
-            background-size: 18px;
+            background-repeat: no-repeat; background-position: right 15px center; background-size: 18px;
         }
-
         input[type="date"]::-webkit-date-and-time-value { text-align: center; }
+        input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0; width: 28px; cursor: pointer; }
 
         select {
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>');
-            background-repeat: no-repeat;
-            background-position: right 15px center;
-            background-size: 18px;
+            background-repeat: no-repeat; background-position: right 15px center; background-size: 18px;
         }
 
         .add-btn { 
@@ -92,7 +110,6 @@
         }
         .add-btn:active { transform: scale(0.96); }
 
-        /* 현황보기 버튼 그룹 스타일 */
         .status-btn-group { display: flex; gap: 8px; margin-bottom: 5px; }
         .status-btn {
             flex: 1; padding: 10px 5px; background: rgba(255, 255, 255, 0.1);
@@ -102,37 +119,136 @@
         }
         .status-btn:active { background: rgba(255, 255, 255, 0.2); transform: scale(0.95); }
 
-        .check-my-btn {
-            width: 100%; padding: 16px;
-            background-color: var(--check-blue);
-            color: white; border: none; border-radius: 12px;
-            cursor: pointer; font-weight: bold; font-size: 16px;
-            margin-top: 20px; margin-bottom: 30px;
-            display: flex; align-items: center; justify-content: center;
-            gap: 8px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        /* ===== 달력 뷰 ===== */
+        .calendar-card {
+            background: var(--card-bg);
+            padding: 16px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+            display: none;
+        }
+        .calendar-card.active { display: block; }
+
+        .cal-nav {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 14px;
+        }
+        .cal-nav-btn {
+            width: 36px; height: 36px;
+            background: rgba(255,255,255,0.1); border: none;
+            border-radius: 10px; color: white; font-size: 18px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+        .cal-nav-btn:active { transform: scale(0.9); }
+        .cal-month-title {
+            font-size: 18px; font-weight: 800; color: var(--tennis-green);
+            letter-spacing: 1px;
         }
 
+        /* 코트 필터 */
+        .court-filter {
+            display: flex; gap: 6px; margin-bottom: 14px;
+        }
+        .court-filter-btn {
+            flex: 1; padding: 9px 4px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px; color: #94a3b8;
+            font-size: 12px; font-weight: 700; cursor: pointer;
+            transition: all 0.2s; text-align: center;
+        }
+        .court-filter-btn.on {
+            background: rgba(223,255,79,0.15);
+            border-color: var(--tennis-green);
+            color: var(--tennis-green);
+        }
+
+        .cal-grid {
+            display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px;
+        }
+        .cal-day-label {
+            text-align: center; font-size: 10px; font-weight: 700;
+            padding: 5px 2px; color: #64748b;
+        }
+        .cal-day-label.sun { color: #f87171; }
+        .cal-day-label.sat { color: #60a5fa; }
+
+        .cal-day {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 8px; padding: 7px 5px;
+            min-width: 0; overflow: hidden;
+        }
+        .cal-day.empty { background: transparent; border-color: transparent; }
+        .cal-day.today { border-color: rgba(223,255,79,0.4); }
+
+        .cal-date-num {
+            font-size: 11px; font-weight: 700; margin-bottom: 6px;
+            color: #cbd5e1; text-align: center;
+        }
+        .cal-date-num.sun { color: #f87171; }
+        .cal-date-num.sat { color: #60a5fa; }
+        .holiday-label {
+            font-size: 7px; color: #f87171; text-align: center;
+            margin-bottom: 5px; line-height: 1.2;
+        }
+
+        /* 코트 버튼 */
+        .court-btns { display: flex; flex-direction: column; gap: 3px; }
+        .court-slot-btn {
+            width: 100%; border: none; border-radius: 4px;
+            background: var(--slot-bg); cursor: pointer;
+            font-size: 9px; color: #94a3b8; font-weight: 700;
+            padding: 5px 2px; text-align: center;
+            transition: all 0.15s; min-width: 0;
+        }
+        .court-slot-btn:hover { background: var(--tennis-green); color: #000; }
+        .court-slot-btn:active { transform: scale(0.95); }
+        .court-slot-btn.added {
+            background: rgba(223,255,79,0.2);
+            border: 1px solid var(--tennis-green);
+            color: var(--tennis-green);
+        }
+        .court-slot-btn.visited {
+            background: rgba(223,255,79,0.06);
+            border: 1px solid rgba(223,255,79,0.25);
+            color: rgba(223,255,79,0.45);
+        }
+
+        /* 범례 */
+        .cal-legend {
+            display: flex; gap: 10px; margin-top: 12px; justify-content: flex-end;
+        }
+        .legend-item {
+            display: flex; align-items: center; gap: 4px; font-size: 10px; color: #64748b;
+        }
+        .legend-dot {
+            width: 10px; height: 10px; border-radius: 2px;
+        }
+
+        /* 리스트 */
         #urlList { list-style: none; padding: 0; margin: 0; }
         
         .url-item { 
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(5px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            padding: 18px; margin-bottom: 15px; border-radius: 16px; 
+            padding: 14px 16px; margin-bottom: 12px; border-radius: 16px; 
             display: flex; align-items: center; justify-content: space-between;
-            cursor: pointer; transition: all 0.3s ease;
+            gap: 10px; transition: all 0.3s ease;
         }
-
         .url-item.visited {
-            background: var(--visited-bg);
-            border-color: var(--tennis-green);
-            opacity: 0.7;
+            background: var(--visited-bg); border-color: var(--tennis-green); opacity: 0.7;
         }
+        .url-item.visited .date-info::after { content: " ✓"; color: var(--tennis-green); }
 
-        .url-item.visited .date-info::after {
-            content: " ✓";
-            color: var(--tennis-green);
+        .open-btn {
+            background: var(--tennis-green); color: #000;
+            border: none; border-radius: 10px; cursor: pointer;
+            font-size: 12px; font-weight: 900; padding: 10px 12px;
+            white-space: nowrap; flex-shrink: 0; transition: 0.15s;
         }
+        .open-btn:active { transform: scale(0.95); }
         
         .link-content { flex-grow: 1; }
         .court-name { display: block; font-size: 12px; color: var(--tennis-green); font-weight: bold; margin-bottom: 4px; }
@@ -143,7 +259,36 @@
             width: 44px; height: 44px; border-radius: 10px; 
             cursor: pointer; font-size: 20px; margin-left: 15px;
             display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
         }
+
+        /* 나의 예약 버튼 */
+        .check-my-btn {
+            width: 100%; padding: 16px;
+            background-color: var(--check-blue); color: white;
+            border: none; border-radius: 12px; cursor: pointer;
+            font-weight: bold; font-size: 16px; margin-top: 10px; margin-bottom: 30px;
+            display: flex; align-items: center; justify-content: center;
+            gap: 8px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        /* 리스트 카운트 뱃지 */
+        .list-section-header {
+            display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+        }
+        .list-title { font-size: 13px; color: #64748b; font-weight: 700; }
+        .list-count {
+            background: var(--tennis-green); color: #000;
+            font-size: 11px; font-weight: 900; border-radius: 50%;
+            width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+        }
+        .clear-all-btn {
+            margin-left: auto; padding: 4px 10px;
+            background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 6px; color: #f87171; font-size: 11px; cursor: pointer; font-weight: 700;
+        }
+
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
@@ -155,28 +300,81 @@
     <div class="notice">
         ⚡️ 반드시 양천구청 통합예약포털에 로그인 후 사용하세요!
     </div>
-    
-    <div class="input-card">
-        <div class="row">
-            <input type="date" id="targetDate">
-        </div>
-        <div class="row">
-            <select id="court">
-                <option value="RI001407">신정교 1코트</option>
-                <option value="RI001517">신정교 2코트</option>
-                <option value="RI001518">신정교 3코트</option>
-            </select>
-        </div>
-        <button class="add-btn" onclick="addToList()">리스트에 추가하기</button>
-        
-        <div class="status-btn-group">
-            <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001407', '_blank')">1코트 현황</button>
-            <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001517', '_blank')">2코트 현황</button>
-            <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001518', '_blank')">3코트 현황</button>
+
+    <!-- 탭 -->
+    <div class="tab-group">
+        <button class="tab-btn active" onclick="switchTab('form')">📅 날짜 선택</button>
+        <button class="tab-btn" onclick="switchTab('calendar')">🗓 달력 보기</button>
+    </div>
+
+    <!-- 폼 탭 -->
+    <div id="tab-form">
+        <div class="input-card">
+            <div class="row"><input type="date" id="targetDate"></div>
+            <div class="row">
+                <select id="court">
+                    <option value="RI001407">신정교 1코트</option>
+                    <option value="RI001517">신정교 2코트</option>
+                    <option value="RI001518">신정교 3코트</option>
+                </select>
+            </div>
+            <button class="add-btn" onclick="addToListManual()">리스트에 추가하기</button>
+            <div class="status-btn-group">
+                <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001407', '_blank')">1코트 현황</button>
+                <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001517', '_blank')">2코트 현황</button>
+                <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001518', '_blank')">3코트 현황</button>
+            </div>
         </div>
     </div>
 
-    <ul id="urlList"></ul>
+    <!-- 달력 탭 -->
+    <div id="tab-calendar" class="hidden">
+        <div class="calendar-card active">
+            <div class="cal-nav">
+                <button class="cal-nav-btn" onclick="changeCalMonth(-1)">◀</button>
+                <span class="cal-month-title" id="calMonthTitle"></span>
+                <button class="cal-nav-btn" onclick="changeCalMonth(1)">▶</button>
+            </div>
+
+            <!-- 코트 필터 -->
+            <div class="court-filter">
+                <button class="court-filter-btn on" data-court="all" onclick="setCourtFilter('all')">전체 코트</button>
+                <button class="court-filter-btn" data-court="RI001407" onclick="setCourtFilter('RI001407')">1코트</button>
+                <button class="court-filter-btn" data-court="RI001517" onclick="setCourtFilter('RI001517')">2코트</button>
+                <button class="court-filter-btn" data-court="RI001518" onclick="setCourtFilter('RI001518')">3코트</button>
+            </div>
+
+            <div class="cal-grid" id="calGrid"></div>
+
+            <div class="cal-legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#334155;"></div> 미선택
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:rgba(223,255,79,0.25); border:1px solid #dfff4f;"></div> 추가됨
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:rgba(223,255,79,0.08); border:1px solid rgba(223,255,79,0.3);"></div> 방문함
+                </div>
+            </div>
+
+            <div class="status-btn-group" style="margin-top:14px; margin-bottom:0;">
+                <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001407', '_blank')">1코트 현황</button>
+                <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001517', '_blank')">2코트 현황</button>
+                <button class="status-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/ex/reservationCal/View.do?riIdx=RI001518', '_blank')">3코트 현황</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 리스트 -->
+    <div id="list-section" class="hidden">
+        <div class="list-section-header">
+            <span class="list-title">예약 리스트</span>
+            <div class="list-count" id="listCount">0</div>
+            <button class="clear-all-btn" onclick="clearAll()">전체 삭제</button>
+        </div>
+        <ul id="urlList"></ul>
+    </div>
 
     <button class="check-my-btn" onclick="window.open('https://www.yangcheon.go.kr/reservation/reservation/foffice/ex/reservationMy/list.do', '_blank', 'width=800,height=900,scrollbars=yes');">
         🔍 나의 예약 확인하기
@@ -184,67 +382,257 @@
 </div>
 
 <script>
-    const dateInput = document.getElementById('targetDate');
-    const today = new Date();
-    const offset = today.getTimezoneOffset() * 60000;
-    const localDate = new Date(today.getTime() - offset).toISOString().split('T')[0];
-    dateInput.value = localDate;
-
+    // ===== 상태 =====
     const addedItems = new Set();
+    const visitedItems = new Set();
+    let calYear, calMonth;
+    let currentCourtFilter = 'all';
 
-    function addToList() {
-        const fullDate = dateInput.value; 
-        if (!fullDate) {
-            alert("날짜를 입력해주세요!");
-            return;
+    const COURTS = [
+        { id: 'RI001407', name: '1코트', short: 'C1' },
+        { id: 'RI001517', name: '2코트', short: 'C2' },
+        { id: 'RI001518', name: '3코트', short: 'C3' },
+    ];
+    const TIME_SLOTS = [
+        { label: '08', start: '08', hour: 8 },
+        { label: '10', start: '10', hour: 10 },
+        { label: '12', start: '12', hour: 12 },
+        { label: '14', start: '14', hour: 14 },
+        { label: '16', start: '16', hour: 16 },
+    ];
+
+    // ===== 초기화 =====
+    const today = new Date();
+    // 다음달 1일 계산 (타임존 오프셋 보정)
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    const nm_year = nextMonth.getFullYear();
+    const nm_month = String(nextMonth.getMonth() + 1).padStart(2, '0');
+    const nm_day = '01';
+    document.getElementById('targetDate').value = `${nm_year}-${nm_month}-${nm_day}`;
+
+    calYear = nextMonth.getFullYear();
+    calMonth = nextMonth.getMonth() + 1;
+    renderCalendar();
+
+    // ===== 탭 전환 =====
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach((b, i) => {
+            b.classList.toggle('active', (i === 0 && tab === 'form') || (i === 1 && tab === 'calendar'));
+        });
+        document.getElementById('tab-form').classList.toggle('hidden', tab !== 'form');
+        document.getElementById('tab-calendar').classList.toggle('hidden', tab !== 'calendar');
+        document.querySelector('.container').classList.toggle('cal-mode', tab === 'calendar');
+    }
+
+    // ===== 공휴일 =====
+    function getHolidays(year) {
+        const solar = { "1-1":"신정","3-1":"삼일절","5-5":"어린이날","6-6":"현충일","8-15":"광복절","10-3":"개천절","10-9":"한글날","12-25":"성탄절" };
+        const lunar = {
+            2025: { "1-28":"설날연휴","1-29":"설날","1-30":"설날연휴","5-5":"부처님오신날","10-5":"추석연휴","10-6":"추석","10-7":"추석연휴" },
+            2026: { "2-16":"설날연휴","2-17":"설날","2-18":"설날연휴","5-24":"부처님오신날","9-24":"추석연휴","9-25":"추석","9-26":"추석연휴" }
+        };
+        let combined = { ...solar, ...(lunar[year] || {}) };
+        if (year === 2026) { combined["3-2"]="대체공휴일"; combined["5-25"]="대체공휴일"; combined["8-17"]="대체공휴일"; combined["10-5"]="대체공휴일"; }
+        return combined;
+    }
+
+    // ===== URL 생성 =====
+    function makeUrl(year, month, day, riIdx) {
+        return `https://www.yangcheon.go.kr/reservation/reservation/foffice/ex/reservationCal/userForm.do?year=${year}&month=${month}&day=${day}&pageIndex=1&riIdx=${riIdx}&tab=R&timeweek=&restAt=`;
+    }
+
+    function itemKey(year, month, day, riIdx) {
+        return `${year}-${month}-${day}-${riIdx}`;
+    }
+
+    // ===== 코트 필터 =====
+    function setCourtFilter(val) {
+        currentCourtFilter = val;
+        document.querySelectorAll('.court-filter-btn').forEach(b => {
+            b.classList.toggle('on', b.dataset.court === val);
+        });
+        renderCalendar();
+    }
+
+    // ===== 달력 렌더링 =====
+    function renderCalendar() {
+        const grid = document.getElementById('calGrid');
+        document.getElementById('calMonthTitle').textContent = `${calYear}년 ${calMonth}월`;
+        grid.innerHTML = '';
+
+        const days = ['일','월','화','수','목','금','토'];
+        days.forEach((d, i) => {
+            const el = document.createElement('div');
+            el.className = `cal-day-label ${i===0?'sun':i===6?'sat':''}`;
+            el.textContent = d;
+            grid.appendChild(el);
+        });
+
+        const firstDay = new Date(calYear, calMonth - 1, 1).getDay();
+        const daysInMonth = new Date(calYear, calMonth, 0).getDate();
+        const holidays = getHolidays(calYear);
+        const todayStr = `${today.getFullYear()}-${today.getMonth()+1}-${today.getDate()}`;
+
+        for (let i = 0; i < firstDay; i++) {
+            const el = document.createElement('div');
+            el.className = 'cal-day empty';
+            grid.appendChild(el);
         }
 
-        const dateParts = fullDate.split('-');
-        const year = dateParts[0];
-        const month = parseInt(dateParts[1]);
-        const day = parseInt(dateParts[2]);
+        const activeCourts = currentCourtFilter === 'all' ? COURTS : COURTS.filter(c => c.id === currentCourtFilter);
 
-        const courtSelect = document.getElementById('court');
-        const riIdx = courtSelect.value;
-        const courtName = courtSelect.options[courtSelect.selectedIndex].text;
+        for (let d = 1; d <= daysInMonth; d++) {
+            const dateObj = new Date(calYear, calMonth - 1, d);
+            const dow = dateObj.getDay();
+            const holidayName = holidays[`${calMonth}-${d}`];
+            const isToday = `${calYear}-${calMonth}-${d}` === todayStr;
+
+            const dayDiv = document.createElement('div');
+            dayDiv.className = `cal-day${isToday ? ' today' : ''}`;
+            if (activeCourts.length === 1) dayDiv.classList.add('single-court');
+
+            const isSun = dow === 0 || !!holidayName;
+            const isSat = dow === 6;
+
+            let numClass = isSun ? 'sun' : isSat ? 'sat' : '';
+            dayDiv.innerHTML = `<div class="cal-date-num ${numClass}">${d}</div>`;
+
+            if (holidayName) {
+                const hl = document.createElement('div');
+                hl.className = 'holiday-label';
+                hl.textContent = holidayName;
+                dayDiv.appendChild(hl);
+            }
+
+            const courtsDiv = document.createElement('div');
+            courtsDiv.className = 'court-btns';
+
+            activeCourts.forEach(court => {
+                const key = itemKey(calYear, calMonth, d, court.id);
+                const btn = document.createElement('button');
+                btn.className = 'court-slot-btn';
+                if (visitedItems.has(key)) btn.classList.add('visited');
+                else if (addedItems.has(key)) btn.classList.add('added');
+                btn.textContent = court.short;
+                btn.title = `${calYear}년 ${calMonth}월 ${d}일 ${court.name}`;
+                btn.onclick = () => addFromCalendar(calYear, calMonth, d, court.id, court.name, btn, key);
+                courtsDiv.appendChild(btn);
+            });
+
+            dayDiv.appendChild(courtsDiv);
+            grid.appendChild(dayDiv);
+        }
+    }
+
+    function changeCalMonth(diff) {
+        calMonth += diff;
+        if (calMonth > 12) { calMonth = 1; calYear++; }
+        else if (calMonth < 1) { calMonth = 12; calYear--; }
+        renderCalendar();
+    }
+
+    // ===== 달력에서 슬롯 클릭 → 리스트 추가/제거 토글만 =====
+    function addFromCalendar(year, month, day, riIdx, courtName, btn, key) {
+        if (addedItems.has(key)) {
+            // 이미 추가된 경우 → 리스트에서 제거
+            addedItems.delete(key);
+            btn.classList.remove('added');
+            const li = document.querySelector(`[data-key="${key}"]`);
+            if (li) li.remove();
+            updateListUI();
+            return;
+        }
+        addToList(year, month, day, riIdx, courtName);
+        btn.classList.add('added');
+    }
+
+    // ===== 리스트 추가 공통 함수 =====
+    function addToList(year, month, day, riIdx, courtName) {
+        const key = itemKey(year, month, day, riIdx);
+        if (addedItems.has(key)) return;
+
+        const url = makeUrl(year, month, day, riIdx);
         const urlList = document.getElementById('urlList');
-
-        const itemKey = `${year}-${month}-${day}-${riIdx}`;
-
-        if (addedItems.has(itemKey)) {
-            alert("이미 리스트에 추가된 코트예요! 😊");
-            return;
-        }
-
-        const url = `https://www.yangcheon.go.kr/reservation/reservation/foffice/ex/reservationCal/userForm.do?year=${year}&month=${month}&day=${day}&pageIndex=1&riIdx=${riIdx}&tab=R&timeweek=&restAt=`;
 
         const li = document.createElement('li');
         li.className = 'url-item';
-        li.dataset.key = itemKey;
-        
+        li.dataset.key = key;
+
         li.innerHTML = `
-            <div class="link-content" onclick="openAndMark(this, '${url}')">
+            <div class="link-content">
                 <span class="court-name">${courtName}</span>
                 <span class="date-info">📅 ${year}년 ${month}월 ${day}일</span>
             </div>
-            <button class="delete-btn" onclick="removeItem(this)">×</button>
+            <button class="open-btn" onclick="event.stopPropagation(); openBooking('${key}', '${url}', this)">예약하기</button>
+            <button class="delete-btn" onclick="event.stopPropagation(); removeItem(this)">×</button>
         `;
 
         urlList.insertBefore(li, urlList.firstChild);
-        addedItems.add(itemKey);
+        addedItems.add(key);
+        updateListUI();
+    }
+
+    // ===== 폼 탭에서 추가 =====
+    function addToListManual() {
+        const fullDate = document.getElementById('targetDate').value;
+        if (!fullDate) { alert("날짜를 입력해주세요!"); return; }
+        const [year, monthStr, dayStr] = fullDate.split('-');
+        const month = parseInt(monthStr);
+        const day = parseInt(dayStr);
+        const courtSelect = document.getElementById('court');
+        const riIdx = courtSelect.value;
+        const courtName = courtSelect.options[courtSelect.selectedIndex].text;
+
+        const key = itemKey(year, month, day, riIdx);
+        if (addedItems.has(key)) { alert("이미 리스트에 추가된 코트예요! 😊"); return; }
+
+        addToList(parseInt(year), month, day, riIdx, courtName);
+        // 달력 슬롯도 업데이트
+        updateCalendarSlotState(key, 'added');
+    }
+
+    function openBooking(key, url, btn) {
+        window.open(url, '_blank', 'width=800,height=900,scrollbars=yes');
+        visitedItems.add(key);
+        const li = document.querySelector(`[data-key="${key}"]`);
+        if (li) li.classList.add('visited');
+        renderCalendar();
     }
 
     function removeItem(btn) {
-        event.stopPropagation();
         const li = btn.parentElement;
         const key = li.dataset.key;
         addedItems.delete(key);
         li.remove();
+        updateCalendarSlotState(key, 'none');
+        updateListUI();
     }
 
-    function openAndMark(element, url) {
-        window.open(url, '_blank', 'width=800,height=900,scrollbars=yes');
-        element.parentElement.classList.add('visited');
+    function clearAll() {
+        if (!confirm('전체 삭제하시겠습니까?')) return;
+        addedItems.clear();
+        document.getElementById('urlList').innerHTML = '';
+        updateListUI();
+        renderCalendar();
+    }
+
+    function markListItemVisited(key) {
+        const item = document.querySelector(`[data-key="${key}"]`);
+        if (item) item.classList.add('visited');
+    }
+
+    function updateCalendarSlotState(key, state) {
+        // key = year-month-day-riIdx
+        const parts = key.split('-');
+        const riIdx = parts[3];
+        // 달력에서 해당 슬롯 버튼들 업데이트
+        renderCalendar();
+    }
+
+    function updateListUI() {
+        const count = addedItems.size;
+        document.getElementById('listCount').textContent = count;
+        document.getElementById('list-section').classList.toggle('hidden', count === 0);
     }
 </script>
 
