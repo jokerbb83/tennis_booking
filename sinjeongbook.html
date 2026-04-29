@@ -79,8 +79,8 @@
         #modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
         .modal { background: white; padding: 25px; border-radius: 15px; width: 340px; text-align: center; }
         .modal input { width: 90%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; margin-bottom: 10px; text-align: center; }
-        .modal-buttons { display: flex; gap: 8px; margin-top: 15px; }
-        .m-btn { flex: 1; padding: 12px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; }
+        .modal-buttons { display: flex; gap: 8px; margin-top: 15px; flex-wrap: wrap; }
+        .m-btn { flex: 1 1 80px; padding: 12px 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; min-width: 80px; font-size: 14px; white-space: nowrap; }
         .m-save { background: #2196F3; } .m-delete { background: #f44336; } .m-cancel { background: #7f8c8d; }
         .m-merge { background: #27ae60; } .m-overwrite { background: #e67e22; }
         .m-keep { background: #7f8c8d; } .m-replace { background: #e67e22; }
@@ -254,6 +254,7 @@
                 <input type="checkbox" id="check-special" style="width: 20px; height: 20px;"> 특별한 날 강조
             </label>
         </div>
+        <div id="import-desc" style="display:none; text-align:left; font-size:13px; color:#555; line-height:1.6; padding: 4px 2px;"></div>
         <div class="modal-buttons" id="modal-btn-container"></div>
     </div>
 </div>
@@ -687,14 +688,17 @@
         document.getElementById('normal-inputs').style.display = 'none';
         document.getElementById('custom-inputs').style.display = 'none';
         document.getElementById('anni-inputs').style.display = 'none';
-        
+
+        const desc = document.getElementById('import-desc');
+        desc.style.display = 'block';
+        desc.innerHTML = `
+            기존 데이터가 있습니다.<br>
+            <b style="color:#27ae60;">누적</b>: 기존 데이터에 합치며, 새로 불러온 칸은 다른 색으로 표시됩니다.<br>
+            <b style="color:#e67e22;">덮어쓰기</b>: 기존 데이터를 모두 지우고 새 데이터로 교체합니다.
+        `;
+
         const container = document.getElementById('modal-btn-container');
         container.innerHTML = `
-            <div style="width:100%; text-align:left; font-size:13px; color:#555; margin-bottom:10px; line-height:1.5;">
-                기존 데이터가 있습니다.<br>
-                <b style="color:#27ae60;">누적</b>: 기존 데이터에 합치며, 새로 불러온 칸은 다른 색으로 표시됩니다.<br>
-                <b style="color:#e67e22;">덮어쓰기</b>: 기존 데이터를 모두 지우고 새 데이터로 교체합니다.
-            </div>
             <button class="m-btn m-merge" id="btn-merge-act">누적</button>
             <button class="m-btn m-overwrite" id="btn-overwrite-act">덮어쓰기</button>
             <button class="m-btn m-cancel" onclick="closeModal()">취소</button>
@@ -975,7 +979,11 @@
 
     function deleteAnni() { delete anniversaryData[activeKey]; localStorage.setItem('anniversaryData', JSON.stringify(anniversaryData)); closeModal(); renderCalendar(); }
     function toggleMode(dateKey) { customModes[dateKey] = !customModes[dateKey]; localStorage.setItem('customModes', JSON.stringify(customModes)); renderCalendar(); }
-    function closeModal() { document.getElementById('modal-overlay').style.display = 'none'; }
+    function closeModal() { 
+        document.getElementById('modal-overlay').style.display = 'none'; 
+        const desc = document.getElementById('import-desc');
+        if (desc) desc.style.display = 'none';
+    }
     function changeMonth(diff) { currentMonth += diff; if (currentMonth > 12) { currentMonth = 1; currentYear++; } else if (currentMonth < 1) { currentMonth = 12; currentYear--; } renderCalendar(); }
     function finalSave() { localStorage.setItem('tennisData', JSON.stringify(reservationData)); closeModal(); renderCalendar(); }
 
