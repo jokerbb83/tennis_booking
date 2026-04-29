@@ -31,8 +31,14 @@
         #capture-calendar-area { background-color: #fff; padding: 25px; border-radius: 15px; max-width: 1400px; margin: 0 auto; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
         .calendar-title-bar { position: relative; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; min-height: 60px; }
         .calendar-title-bar .title-center { text-align: center; }
-        .calendar-title-bar .title-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 8px; }
+        .calendar-title-bar .title-left { position: absolute; left: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: flex-start; gap: 6px; max-width: 45%; }
+        .calendar-title-bar .title-left-top { display: flex; align-items: center; gap: 8px; }
         .calendar-title-bar .title-right { display: none; }
+        .name-filters { display: flex; flex-wrap: wrap; gap: 4px; }
+        .filter-btn { padding: 4px 10px; border: 2px solid #54a0ff; background: #54a0ff; color: white; border-radius: 14px; font-size: 12px; font-weight: bold; cursor: pointer; transition: all 0.15s; line-height: 1; }
+        .filter-btn.off { background: white; color: #999; border-color: #ccc; text-decoration: line-through; }
+        .filter-btn:hover { transform: translateY(-1px); }
+        .filter-btn .filter-count { font-size: 10px; opacity: 0.8; margin-left: 3px; font-weight: normal; }
         #quick-name { padding: 9px 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 14px; width: 130px; text-align: center; font-weight: bold; }
         #quick-name:focus { outline: none; border-color: #54a0ff; }
         #quick-name.has-value { background: #fff3cd; border-color: #f39c12; color: #d35400; }
@@ -114,29 +120,50 @@
             /* 제목바: 모바일에서는 세로로 쌓기 */
             .calendar-title-bar { flex-direction: column; gap: 8px; margin-bottom: 10px !important; min-height: 0; }
             .calendar-title-bar .title-center { order: 1; }
-            .calendar-title-bar .title-left { position: static; transform: none; order: 2; gap: 6px; flex-wrap: wrap; justify-content: center; }
+            .calendar-title-bar .title-left { position: static; transform: none; order: 2; gap: 6px; max-width: 100%; align-items: center; }
+            .calendar-title-bar .title-left-top { flex-wrap: wrap; justify-content: center; }
+            .name-filters { justify-content: center; }
             #quick-name { width: 110px; padding: 7px 10px; font-size: 13px; }
             #capture-calendar-area .title-center h1 { font-size: 16px !important; }
             #capture-calendar-area .title-center p { font-size: 11px !important; margin: 2px 0 0 !important; }
             .calendar-grid { gap: 2px; }
             .day-label { padding: 5px 1px; font-size: 11px; border-radius: 3px; }
             .day-card { padding: 3px 2px; min-height: 110px; border-radius: 4px; }
-            .date-header { margin-bottom: 3px; padding-bottom: 2px; }
-            .date-num { font-size: 11px; padding: 1px 2px; }
+            .date-header { margin-bottom: 3px; padding-bottom: 2px; gap: 2px; }
+            /* 날짜 영역 줄바꿈 방지 */
+            .date-header > div:first-child { flex-wrap: nowrap !important; min-width: 0; flex: 1; }
+            .date-num { font-size: 10px; padding: 1px 2px; white-space: nowrap; }
             .holiday-name, .anni-name { display: none; }
-            .edit-mode-btn { font-size: 11px; padding: 0 2px; }
+            .edit-mode-btn { font-size: 10px; padding: 0 1px; flex-shrink: 0; }
 
             /* 코트 버튼: 글자 숨기고 색상 블록으로 */
-            .court-row { gap: 1px; margin-bottom: 1px; }
+            .court-row { gap: 1px; margin-bottom: 1px; position: relative; }
             .time-label { display: none; }
             .court-btn {
-                height: 14px;
+                height: 16px;
                 font-size: 0;          /* 텍스트 시각적으로 숨김 */
                 color: transparent;
                 border-radius: 2px;
                 padding: 0;
                 line-height: 1;
+                position: relative;
             }
+            /* 빈 칸(예약 안 된 회색)에만 시간 숫자 옅게 표시 */
+            .court-btn:not(.booked)::before {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 9px;
+                color: rgba(0, 0, 0, 0.32);
+                font-weight: bold;
+                font-family: serif;
+                pointer-events: none;
+                line-height: 1;
+            }
+            .court-btn:not(.booked)[data-time-start]::before { content: attr(data-time-start); }
+            .court-btn:not(.booked)[data-time-mid]::before { content: attr(data-time-mid); font-size: 8px; }
+            .court-btn:not(.booked)[data-time-end]::before { content: attr(data-time-end); }
             /* 커스텀 모드 entry: 글자 숨기고 색상 블록만 */
             .custom-container { gap: 2px; }
             .custom-entry {
@@ -162,8 +189,9 @@
         }
         @media (max-width: 380px) {
             .day-card { min-height: 95px; padding: 2px 1px; }
-            .date-num { font-size: 10px; }
-            .court-btn { height: 12px; }
+            .date-num { font-size: 9px; padding: 1px; }
+            .edit-mode-btn { font-size: 9px; }
+            .court-btn { height: 14px; }
             .custom-entry { height: 15px; }
         }
     </style>
@@ -193,8 +221,11 @@
 <div id="capture-calendar-area">
     <div class="calendar-title-bar">
         <div class="title-left no-capture">
-            <input type="text" id="quick-name" placeholder="예약자 이름" maxlength="2" oninput="saveQuickName()">
-            <button class="action-btn btn-clear" onclick="clearMonthData()">🗑️ 이달 데이터 삭제</button>
+            <div class="title-left-top">
+                <input type="text" id="quick-name" placeholder="예약자 이름" maxlength="2" oninput="saveQuickName()">
+                <button class="action-btn btn-clear" onclick="clearMonthData()">🗑️ 이달 데이터 삭제</button>
+            </div>
+            <div class="name-filters" id="name-filters"></div>
         </div>
         <div class="title-center">
             <h1 style="margin:0; font-size:28px; color:#2c3e50;">한미모스 테니스 클럽</h1>
@@ -251,6 +282,8 @@
     let dataGroups = JSON.parse(localStorage.getItem('dataGroups')) || {}; 
     let nextGroupId = parseInt(localStorage.getItem('nextGroupId')) || 1;
     const MAX_GROUP_COLORS = 8;
+    // 필터: 비활성화된(꺼진) 이름 집합
+    let hiddenNames = new Set(JSON.parse(localStorage.getItem('hiddenNames') || '[]'));
     let activeKey = null;
     const timeSlots = ["08-10", "10-12", "12-14", "14-16", "16-18"];
 
@@ -270,12 +303,62 @@
         if (saved) input.classList.add('has-value');
     }
 
+    // 필터: 현재 보고 있는 달의 코트 예약에서 사용된 이름 목록 + 카운트
+    function getNamesInCurrentMonth() {
+        const prefix = `${currentYear}-${currentMonth}-`;
+        const counts = {};
+        Object.keys(reservationData).forEach(k => {
+            if (!k.startsWith(prefix)) return;
+            const val = reservationData[k];
+            // 일반 코트 예약(문자열)만 대상. 커스텀 일정(배열)은 제외.
+            if (typeof val === 'string' && val) {
+                counts[val] = (counts[val] || 0) + 1;
+            }
+        });
+        return counts;
+    }
+
+    function renderNameFilters() {
+        const container = document.getElementById('name-filters');
+        const counts = getNamesInCurrentMonth();
+        const names = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+
+        // 비활성 목록에서 더 이상 존재하지 않는 이름은 정리
+        Array.from(hiddenNames).forEach(n => { if (!counts[n]) hiddenNames.delete(n); });
+        localStorage.setItem('hiddenNames', JSON.stringify(Array.from(hiddenNames)));
+
+        container.innerHTML = '';
+        if (names.length < 2) return; // 1명 이하면 필터 숨김
+
+        names.forEach(name => {
+            const btn = document.createElement('button');
+            btn.className = 'filter-btn';
+            if (hiddenNames.has(name)) btn.classList.add('off');
+            btn.innerHTML = `${escapeHtml(name)}<span class="filter-count">${counts[name]}</span>`;
+            btn.onclick = () => toggleNameFilter(name);
+            container.appendChild(btn);
+        });
+    }
+
+    function toggleNameFilter(name) {
+        if (hiddenNames.has(name)) hiddenNames.delete(name);
+        else hiddenNames.add(name);
+        localStorage.setItem('hiddenNames', JSON.stringify(Array.from(hiddenNames)));
+        renderCalendar();
+    }
+
     function handleCourtClick(key) {
+        const existingName = reservationData[key];
+        // 필터로 숨겨진 칸을 클릭한 경우: 모달로 띄워 사용자가 인지하게 함
+        if (existingName && hiddenNames.has(existingName)) {
+            openNormalModal(key);
+            return;
+        }
         const quickName = (document.getElementById('quick-name').value || '').trim().substring(0, 2);
         if (quickName) {
             // 이름이 입력되어 있으면 자동 저장 (모달 없이)
             // 이미 같은 이름이 있으면 삭제(토글), 아니면 저장
-            if (reservationData[key] === quickName) {
+            if (existingName === quickName) {
                 delete reservationData[key];
                 delete dataGroups[key];
             } else {
@@ -367,12 +450,19 @@
                 timeSlots.forEach(time => {
                     const row = document.createElement('div'); row.className = 'court-row';
                     const start = time.split('-')[0];
+                    const end = time.split('-')[1];
                     row.innerHTML = `<span class="time-label">${start}시</span>`;
                     for (let c = 1; c <= 3; c++) {
                         const btn = document.createElement('button'); btn.className = 'court-btn';
                         const key = `${dateKey}-${start}-${c}`;
-                        if (reservationData[key]) { 
-                            btn.innerText = reservationData[key]; 
+                        // 시간대 표시용 data 속성: 첫 칸=시작시간, 끝 칸=끝시간 (모바일에서만 표시)
+                        if (c === 1) btn.dataset.timeStart = parseInt(start);
+                        else if (c === 2) btn.dataset.timeMid = '~';
+                        else if (c === 3) btn.dataset.timeEnd = parseInt(end);
+                        const reservedName = reservationData[key];
+                        // 필터: 숨겨진 이름이면 빈 칸처럼 표시
+                        if (reservedName && !hiddenNames.has(reservedName)) { 
+                            btn.innerText = reservedName; 
                             btn.classList.add('booked'); 
                             const grp = dataGroups[key];
                             if (grp) {
@@ -389,6 +479,7 @@
             }
             calendar.appendChild(card);
         }
+        renderNameFilters();
     }
 
     async function captureCalendarImage() {
