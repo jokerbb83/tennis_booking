@@ -213,7 +213,7 @@
     <div class="btn-group">
         <button class="action-btn btn-save" onclick="exportData()">💾 백업 저장</button>
         <button class="action-btn btn-load" onclick="document.getElementById('fileInput').click()">📂 불러오기</button>
-        <input type="file" id="fileInput" style="display:none" onchange="importData(event)">
+        <input type="file" id="fileInput" style="display:none" accept=".json,.png,image/png,application/json" onchange="importData(event)">
     </div>
     </div>
 </div>
@@ -483,6 +483,120 @@
         renderNameFilters();
     }
 
+    // ===== PNG tEXt 청크 처리 유틸 (JSON 임베드/추출) =====
+    // PNG 파일에 보이지 않는 메타데이터로 JSON을 숨겨 저장하고,
+    // 같은 PNG를 불러올 때 정확하게 복원할 수 있게 함.
+    const PNG_TEXT_KEYWORD = 'hanmimos-data';
+
+    // CRC32 테이블 (PNG 청크 CRC 계산용)
+    const _crcTable = (() => {
+        const table = new Uint32Array(256);
+        for (let n = 0; n < 256; n++) {
+            let c = n;
+            for (let k = 0; k < 8; k++) {
+                c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+            }
+            table[n] = c >>> 0;
+        }
+        return table;
+    })();
+    function _crc32(bytes) {
+        let crc = 0xFFFFFFFF;
+        for (let i = 0; i < bytes.length; i++) {
+            crc = (_crcTable[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8)) >>> 0;
+        }
+        return (crc ^ 0xFFFFFFFF) >>> 0;
+    }
+    // dataURL("data:image/png;base64,....") -> Uint8Array
+    function _dataURLToBytes(dataURL) {
+        const base64 = dataURL.split(',')[1];
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        return bytes;
+    }
+    // PNG 바이트에 tEXt 청크 삽입 (IHDR 다음 위치에 삽입)
+    function _embedTextChunk(pngBytes, keyword, text) {
+        // PNG 시그니처(8 bytes) 검증
+        const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+        for (let i = 0; i < 8; i++) {
+            if (pngBytes[i] !== sig[i]) throw new Error('유효한 PNG 파일이 아닙니다.');
+        }
+        // IHDR 청크 위치: 시그니처(8) + 길이(4) + 타입(4) + 데이터(13) + CRC(4) = 33
+        const ihdrEnd = 8 + 4 + 4 + 13 + 4; // 33
+
+        // tEXt 청크 데이터: keyword + 0x00 + text (Latin-1 권장이지만 실제로는 바이트 배열)
+        // JSON에 한글이 있을 수 있으므로 UTF-8로 인코딩.
+        // 호환성을 위해 일부 PNG 리더가 Latin-1만 받을 수 있어 zTXt 대신 tEXt + UTF-8 사용.
+        const keywordBytes = new TextEncoder().encode(keyword);
+        const textBytes = new TextEncoder().encode(text);
+        const dataLen = keywordBytes.length + 1 + textBytes.length;
+
+        // 청크 = [길이(4)] + [타입 'tEXt'(4)] + [데이터] + [CRC(4)]
+        const chunk = new Uint8Array(4 + 4 + dataLen + 4);
+        // 길이 (big-endian)
+        chunk[0] = (dataLen >>> 24) & 0xFF;
+        chunk[1] = (dataLen >>> 16) & 0xFF;
+        chunk[2] = (dataLen >>> 8) & 0xFF;
+        chunk[3] = dataLen & 0xFF;
+        // 타입
+        chunk[4] = 0x74; chunk[5] = 0x45; chunk[6] = 0x58; chunk[7] = 0x74; // 'tEXt'
+        // 데이터
+        chunk.set(keywordBytes, 8);
+        chunk[8 + keywordBytes.length] = 0x00; // null separator
+        chunk.set(textBytes, 8 + keywordBytes.length + 1);
+        // CRC: 타입 + 데이터에 대해 계산
+        const crcInput = chunk.subarray(4, 8 + dataLen);
+        const crc = _crc32(crcInput);
+        const crcOffset = 8 + dataLen;
+        chunk[crcOffset] = (crc >>> 24) & 0xFF;
+        chunk[crcOffset + 1] = (crc >>> 16) & 0xFF;
+        chunk[crcOffset + 2] = (crc >>> 8) & 0xFF;
+        chunk[crcOffset + 3] = crc & 0xFF;
+
+        // 결과 = [원본 PNG 앞부분(IHDR 끝까지)] + [tEXt 청크] + [원본 PNG 나머지]
+        const result = new Uint8Array(pngBytes.length + chunk.length);
+        result.set(pngBytes.subarray(0, ihdrEnd), 0);
+        result.set(chunk, ihdrEnd);
+        result.set(pngBytes.subarray(ihdrEnd), ihdrEnd + chunk.length);
+        return result;
+    }
+    // PNG에서 지정한 keyword의 tEXt 청크 텍스트 추출 (없으면 null)
+    function _extractTextChunk(pngBytes, keyword) {
+        const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+        for (let i = 0; i < 8; i++) {
+            if (pngBytes[i] !== sig[i]) return null;
+        }
+        const keywordBytes = new TextEncoder().encode(keyword);
+        let pos = 8;
+        const decoder = new TextDecoder('utf-8');
+        while (pos + 8 <= pngBytes.length) {
+            const len = (pngBytes[pos] << 24) | (pngBytes[pos+1] << 16) | (pngBytes[pos+2] << 8) | pngBytes[pos+3];
+            const type = String.fromCharCode(pngBytes[pos+4], pngBytes[pos+5], pngBytes[pos+6], pngBytes[pos+7]);
+            const dataStart = pos + 8;
+            const dataEnd = dataStart + len;
+            if (dataEnd + 4 > pngBytes.length) break;
+            if (type === 'tEXt') {
+                // keyword 매칭 확인
+                let match = true;
+                if (keywordBytes.length + 1 > len) match = false;
+                else {
+                    for (let i = 0; i < keywordBytes.length; i++) {
+                        if (pngBytes[dataStart + i] !== keywordBytes[i]) { match = false; break; }
+                    }
+                    if (match && pngBytes[dataStart + keywordBytes.length] !== 0x00) match = false;
+                }
+                if (match) {
+                    const textStart = dataStart + keywordBytes.length + 1;
+                    return decoder.decode(pngBytes.subarray(textStart, dataEnd));
+                }
+            }
+            if (type === 'IEND') break;
+            pos = dataEnd + 4; // CRC 다음으로
+        }
+        return null;
+    }
+
     async function captureCalendarImage() {
         const area = document.getElementById('capture-calendar-area');
         const editButtons = document.querySelectorAll('.edit-mode-btn, .custom-add-btn');
@@ -494,9 +608,36 @@
         const canvas = await html2canvas(area, { scale: 2 });
         editButtons.forEach(btn => btn.style.visibility = 'visible');
         noCaptureEls.forEach((el, i) => { el.style.display = prevDisplays[i]; });
+
+        // === PNG에 JSON 데이터 숨겨 넣기 ===
+        const dataURL = canvas.toDataURL('image/png');
+        let finalBlobUrl = dataURL;
+        try {
+            const pngBytes = _dataURLToBytes(dataURL);
+            const payload = JSON.stringify({
+                version: 1,
+                savedAt: new Date().toISOString(),
+                year: currentYear,
+                month: currentMonth,
+                reservationData,
+                customModes,
+                anniversaryData
+            });
+            const newBytes = _embedTextChunk(pngBytes, PNG_TEXT_KEYWORD, payload);
+            const blob = new Blob([newBytes], { type: 'image/png' });
+            finalBlobUrl = URL.createObjectURL(blob);
+        } catch (err) {
+            console.warn('PNG에 데이터 임베드 실패, 원본 이미지로 저장합니다.', err);
+        }
+
         const link = document.createElement('a');
         link.download = `한미모스_달력_${currentYear}_${currentMonth}.png`;
-        link.href = canvas.toDataURL(); link.click();
+        link.href = finalBlobUrl;
+        link.click();
+        // blob URL 메모리 해제
+        if (finalBlobUrl.startsWith('blob:')) {
+            setTimeout(() => URL.revokeObjectURL(finalBlobUrl), 1000);
+        }
     }
 
     async function captureSummaryImage() {
@@ -654,14 +795,33 @@
     function importData(e) {
         const file = e.target.files[0];
         if (!file) return;
+
+        const isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
         const reader = new FileReader();
-        reader.onload = (le) => { 
+
+        reader.onload = (le) => {
             let imported;
-            try {
-                imported = JSON.parse(le.target.result);
-            } catch (err) {
-                alert('파일을 읽을 수 없습니다. 올바른 백업 파일인지 확인해주세요.');
-                return;
+            if (isPng) {
+                // PNG에서 tEXt 청크로 숨겨둔 JSON 추출
+                try {
+                    const bytes = new Uint8Array(le.target.result);
+                    const text = _extractTextChunk(bytes, PNG_TEXT_KEYWORD);
+                    if (!text) {
+                        alert('이 PNG에는 한미모스 데이터가 포함되어 있지 않습니다.\n(달력형 저장으로 만든 이미지여야 불러올 수 있어요)');
+                        return;
+                    }
+                    imported = JSON.parse(text);
+                } catch (err) {
+                    alert('PNG에서 데이터를 읽는 데 실패했습니다.');
+                    return;
+                }
+            } else {
+                try {
+                    imported = JSON.parse(le.target.result);
+                } catch (err) {
+                    alert('파일을 읽을 수 없습니다. 올바른 백업 파일인지 확인해주세요.');
+                    return;
+                }
             }
 
             // 기존 데이터가 있는지 확인
@@ -677,7 +837,10 @@
                 showImportChoiceModal(imported);
             }
         };
-        reader.readAsText(file);
+
+        if (isPng) reader.readAsArrayBuffer(file);
+        else reader.readAsText(file);
+
         // 같은 파일 다시 선택 가능하도록 input 초기화
         e.target.value = '';
     }
