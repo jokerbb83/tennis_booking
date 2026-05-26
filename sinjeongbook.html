@@ -228,7 +228,7 @@
             <div class="name-filters" id="name-filters"></div>
         </div>
         <div class="title-center">
-            <h1 style="margin:0; font-size:28px; color:#2c3e50;">한미모스 테니스 클럽</h1>
+            <h1 style="margin:0; font-size:28px; color:#2c3e50;">한미모스 신정교 코트 관리</h1>
             <p class="sub-date-text" style="color:#666; font-weight:bold;"></p>
         </div>
         <div class="title-right no-capture"></div>
@@ -556,101 +556,17 @@
     // 같은 PNG를 불러올 때 정확하게 복원할 수 있게 함.
     const PNG_TEXT_KEYWORD = 'hanmimos-data';
 
-    // ===== 모바일/PC 공통 파일 저장 유틸 =====
-    // 모바일(특히 iOS Safari)은 <a download> + blob을 지원하지 않아
-    // 파일이 생성되지 않는다. 모바일에서는 이미지/파일을 화면에 띄워
-    // 사용자가 직접 저장(길게 눌러 저장 / 공유)하도록 처리한다.
-    function _isMobile() {
-        return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
-            || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.userAgent));
-    }
+    // ===== 파일 저장 유틸 =====
 
-    // 모바일에서 이미지를 미리보기 모달로 띄움 (길게 눌러 저장 / 공유 가능)
-    function _showImagePreview(blobUrl, fileName, blob) {
-        const overlay = document.createElement('div');
-        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:14px;';
-
-        const tip = document.createElement('div');
-        tip.style.cssText = 'color:#fff;font-size:14px;font-weight:700;text-align:center;margin:6px 0 12px;line-height:1.6;';
-        tip.innerHTML = '아래 이미지를 <u>길게 눌러</u> &ldquo;이미지 저장&rdquo;을 선택하세요.<br>또는 아래 공유 버튼을 사용하세요.';
-        overlay.appendChild(tip);
-
-        const img = document.createElement('img');
-        img.src = blobUrl;
-        img.style.cssText = 'max-width:100%;height:auto;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.5);';
-        overlay.appendChild(img);
-
-        const btnWrap = document.createElement('div');
-        btnWrap.style.cssText = 'display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;justify-content:center;';
-
-        // 공유 버튼 (Web Share API 지원 시)
-        if (navigator.canShare && blob) {
-            const file = new File([blob], fileName, { type: blob.type });
-            if (navigator.canShare({ files: [file] })) {
-                const shareBtn = document.createElement('button');
-                shareBtn.textContent = '📤 공유 / 저장';
-                shareBtn.style.cssText = 'padding:12px 22px;background:#54a0ff;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;';
-                shareBtn.onclick = async () => {
-                    try { await navigator.share({ files: [file], title: fileName }); }
-                    catch (e) { /* 사용자가 취소한 경우 등 무시 */ }
-                };
-                btnWrap.appendChild(shareBtn);
-            }
-        }
-
-        // 새 탭으로 열기 (다운로드 폴백)
-        const openBtn = document.createElement('button');
-        openBtn.textContent = '🔗 새 탭에서 열기';
-        openBtn.style.cssText = 'padding:12px 22px;background:#1dd1a1;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;';
-        openBtn.onclick = () => window.open(blobUrl, '_blank');
-        btnWrap.appendChild(openBtn);
-
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = '✕ 닫기';
-        closeBtn.style.cssText = 'padding:12px 22px;background:#7f8c8d;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;';
-        closeBtn.onclick = () => { document.body.removeChild(overlay); };
-        btnWrap.appendChild(closeBtn);
-
-        overlay.appendChild(btnWrap);
-        document.body.appendChild(overlay);
-    }
-
-    // blob을 받아 PC면 다운로드, 모바일이면 처리 분기
+    // blob을 받아 바로 다운로드 (PC/모바일 공통)
     function _saveBlob(blob, fileName, opts) {
-        opts = opts || {};
         const blobUrl = URL.createObjectURL(blob);
-
-        if (_isMobile()) {
-            if (opts.isImage) {
-                _showImagePreview(blobUrl, fileName, blob);
-                // 미리보기는 화면에 계속 떠 있으므로 URL을 바로 해제하지 않음
-                return;
-            }
-            // 이미지가 아닌 파일(JSON 등): 공유 우선, 안 되면 새 탭
-            if (navigator.canShare) {
-                const file = new File([blob], fileName, { type: blob.type });
-                if (navigator.canShare({ files: [file] })) {
-                    navigator.share({ files: [file], title: fileName })
-                        .catch(() => window.open(blobUrl, '_blank'))
-                        .finally(() => setTimeout(() => URL.revokeObjectURL(blobUrl), 4000));
-                    return;
-                }
-            }
-            // 공유 불가 시: 다운로드 시도 후 새 탭 폴백
-            const a = document.createElement('a');
-            a.href = blobUrl; a.download = fileName;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            setTimeout(() => {
-                window.open(blobUrl, '_blank');
-                setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
-            }, 300);
-            return;
-        }
-
-        // PC: 표준 다운로드
         const a = document.createElement('a');
-        a.href = blobUrl; a.download = fileName;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        a.href = blobUrl;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
         setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     }
 
@@ -820,7 +736,7 @@
         summaryDiv.className = 'summary-capture-area';
         let contentHtml = `
             <div class="summary-header">
-                <h1>한미모스 테니스 클럽</h1>
+                <h1>한미모스 신정교 코트</h1>
                 <p>신정교 ${currentMonth}월 일정</p>
             </div>
         `;
@@ -868,7 +784,7 @@
     }
 
     function copyToClipboard() {
-        let text = `🎾 한미모스 테니스 클럽 ${currentMonth}월 일정\n\n`;
+        let text = `🎾 한미모스 신정교 코트 ${currentMonth}월 일정\n\n`;
         const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
         let hasData = false;
         for(let d=1; d<=daysInMonth; d++) {
@@ -931,14 +847,9 @@
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "테니스 일정");
         const fileName = `한미모스_일정_${currentYear}_${currentMonth}.xlsx`;
-        if (_isMobile()) {
-            // 모바일: blob으로 만들어 공유 시트로 저장
-            const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-            const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            _saveBlob(blob, fileName, { isImage: false });
-        } else {
-            XLSX.writeFile(workbook, fileName);
-        }
+        const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        _saveBlob(blob, fileName);
     }
 
     // 백업 저장 파일명 수정 (YYMMDD_v01 형식)
