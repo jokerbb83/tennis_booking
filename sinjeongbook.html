@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
-    <title>한미모스 테니스 클럽 관리</title>
+    <title>한미모스 신정교 코트 관리</title>
     <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -283,25 +283,76 @@
     let dataGroups = JSON.parse(localStorage.getItem('dataGroups')) || {}; 
     let nextGroupId = parseInt(localStorage.getItem('nextGroupId')) || 1;
     const MAX_GROUP_COLORS = 8;
+
+    // ===== 예약자 이름별 자동 색상 배정 =====
+    // 같은 이름이면 항상 같은 색이 나오도록 이름을 해시해서 팔레트 색을 고른다.
+    const NAME_COLOR_PALETTE = [
+        { bg: '#ef9a9a', fg: '#7f1d1d' }, // 빨강
+        { bg: '#90caf9', fg: '#0d3b66' }, // 파랑
+        { bg: '#a5d6a7', fg: '#1b5e20' }, // 초록
+        { bg: '#ffcc80', fg: '#7c3a00' }, // 주황
+        { bg: '#ce93d8', fg: '#4a148c' }, // 보라
+        { bg: '#80deea', fg: '#00474f' }, // 청록
+        { bg: '#ffab91', fg: '#7a2e12' }, // 살구
+        { bg: '#f48fb1', fg: '#7a0a39' }, // 분홍
+        { bg: '#b39ddb', fg: '#311b92' }, // 연보라
+        { bg: '#c5e1a5', fg: '#33691e' }, // 연두
+        { bg: '#fff59d', fg: '#7a6a00' }, // 노랑
+        { bg: '#bcaaa4', fg: '#3e2723' }, // 갈색
+    ];
+    function _hashString(str) {
+        // FNV-1a 해시 + 추가 믹싱 (짧은 한글 이름도 색상이 고르게 분산되도록)
+        let h = 2166136261;
+        for (let i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h = Math.imul(h, 16777619);
+        }
+        h = h >>> 0;
+        h ^= h >>> 13;
+        h = Math.imul(h, 0x5bd1e995);
+        h ^= h >>> 15;
+        return h >>> 0;
+    }
+    function getNameColor(name) {
+        const key = (name || '').trim();
+        if (!key) return null;
+        return NAME_COLOR_PALETTE[_hashString(key) % NAME_COLOR_PALETTE.length];
+    }
+
     // 필터: 비활성화된(꺼진) 이름 집합
     let hiddenNames = new Set(JSON.parse(localStorage.getItem('hiddenNames') || '[]'));
     let activeKey = null;
     const timeSlots = ["08-10", "10-12", "12-14", "14-16", "16-18"];
 
     // 예약자 이름 빠른 입력 관련
+    function applyQuickNameColor(input, val) {
+        // 입력한 이름의 자동 색상으로 입력칸을 미리보기 표시
+        const nc = getNameColor(val);
+        if (val && nc) {
+            input.classList.remove('has-value');
+            input.style.backgroundColor = nc.bg;
+            input.style.color = nc.fg;
+            input.style.borderColor = nc.fg;
+        } else {
+            input.style.backgroundColor = '';
+            input.style.color = '';
+            input.style.borderColor = '';
+            input.classList.remove('has-value');
+        }
+    }
+
     function saveQuickName() {
         const input = document.getElementById('quick-name');
         const val = input.value.trim().substring(0, 2);
         localStorage.setItem('quickName', val);
-        if (val) input.classList.add('has-value');
-        else input.classList.remove('has-value');
+        applyQuickNameColor(input, val);
     }
 
     function loadQuickName() {
         const saved = localStorage.getItem('quickName') || '';
         const input = document.getElementById('quick-name');
         input.value = saved;
-        if (saved) input.classList.add('has-value');
+        applyQuickNameColor(input, saved);
     }
 
     // 필터: 현재 보고 있는 달의 코트 예약에서 사용된 이름 목록 + 카운트
@@ -335,6 +386,15 @@
             const btn = document.createElement('button');
             btn.className = 'filter-btn';
             if (hiddenNames.has(name)) btn.classList.add('off');
+            else {
+                // 켜진 필터 버튼은 해당 이름의 자동 색상으로 표시 (달력 색과 매칭)
+                const nc = getNameColor(name);
+                if (nc) {
+                    btn.style.backgroundColor = nc.bg;
+                    btn.style.color = nc.fg;
+                    btn.style.borderColor = nc.bg;
+                }
+            }
             btn.innerHTML = `${escapeHtml(name)}<span class="filter-count">${counts[name]}</span>`;
             btn.onclick = () => toggleNameFilter(name);
             container.appendChild(btn);
@@ -467,8 +527,16 @@
                             btn.classList.add('booked'); 
                             const grp = dataGroups[key];
                             if (grp) {
+                                // 누적 불러오기 그룹 색상이 지정된 칸은 기존 그룹 색 유지
                                 const colorIdx = ((grp - 1) % MAX_GROUP_COLORS) + 1;
                                 btn.classList.add(`group-${colorIdx}`);
+                            } else {
+                                // 직접 입력한 예약: 예약자 이름별 자동 색상
+                                const nc = getNameColor(reservedName);
+                                if (nc) {
+                                    btn.style.backgroundColor = nc.bg;
+                                    btn.style.color = nc.fg;
+                                }
                             }
                         }
                         else btn.innerText = `C${c}`;
@@ -487,6 +555,119 @@
     // PNG 파일에 보이지 않는 메타데이터로 JSON을 숨겨 저장하고,
     // 같은 PNG를 불러올 때 정확하게 복원할 수 있게 함.
     const PNG_TEXT_KEYWORD = 'hanmimos-data';
+
+    // ===== 모바일/PC 공통 파일 저장 유틸 =====
+    // 모바일(특히 iOS Safari)은 <a download> + blob을 지원하지 않아
+    // 파일이 생성되지 않는다. 모바일에서는 이미지/파일을 화면에 띄워
+    // 사용자가 직접 저장(길게 눌러 저장 / 공유)하도록 처리한다.
+    function _isMobile() {
+        return /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent)
+            || (navigator.maxTouchPoints && navigator.maxTouchPoints > 1 && /Mac/i.test(navigator.userAgent));
+    }
+
+    // 모바일에서 이미지를 미리보기 모달로 띄움 (길게 눌러 저장 / 공유 가능)
+    function _showImagePreview(blobUrl, fileName, blob) {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;padding:14px;';
+
+        const tip = document.createElement('div');
+        tip.style.cssText = 'color:#fff;font-size:14px;font-weight:700;text-align:center;margin:6px 0 12px;line-height:1.6;';
+        tip.innerHTML = '아래 이미지를 <u>길게 눌러</u> &ldquo;이미지 저장&rdquo;을 선택하세요.<br>또는 아래 공유 버튼을 사용하세요.';
+        overlay.appendChild(tip);
+
+        const img = document.createElement('img');
+        img.src = blobUrl;
+        img.style.cssText = 'max-width:100%;height:auto;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.5);';
+        overlay.appendChild(img);
+
+        const btnWrap = document.createElement('div');
+        btnWrap.style.cssText = 'display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;justify-content:center;';
+
+        // 공유 버튼 (Web Share API 지원 시)
+        if (navigator.canShare && blob) {
+            const file = new File([blob], fileName, { type: blob.type });
+            if (navigator.canShare({ files: [file] })) {
+                const shareBtn = document.createElement('button');
+                shareBtn.textContent = '📤 공유 / 저장';
+                shareBtn.style.cssText = 'padding:12px 22px;background:#54a0ff;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;';
+                shareBtn.onclick = async () => {
+                    try { await navigator.share({ files: [file], title: fileName }); }
+                    catch (e) { /* 사용자가 취소한 경우 등 무시 */ }
+                };
+                btnWrap.appendChild(shareBtn);
+            }
+        }
+
+        // 새 탭으로 열기 (다운로드 폴백)
+        const openBtn = document.createElement('button');
+        openBtn.textContent = '🔗 새 탭에서 열기';
+        openBtn.style.cssText = 'padding:12px 22px;background:#1dd1a1;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;';
+        openBtn.onclick = () => window.open(blobUrl, '_blank');
+        btnWrap.appendChild(openBtn);
+
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕ 닫기';
+        closeBtn.style.cssText = 'padding:12px 22px;background:#7f8c8d;color:#fff;border:none;border-radius:10px;font-weight:700;font-size:15px;';
+        closeBtn.onclick = () => { document.body.removeChild(overlay); };
+        btnWrap.appendChild(closeBtn);
+
+        overlay.appendChild(btnWrap);
+        document.body.appendChild(overlay);
+    }
+
+    // blob을 받아 PC면 다운로드, 모바일이면 처리 분기
+    function _saveBlob(blob, fileName, opts) {
+        opts = opts || {};
+        const blobUrl = URL.createObjectURL(blob);
+
+        if (_isMobile()) {
+            if (opts.isImage) {
+                _showImagePreview(blobUrl, fileName, blob);
+                // 미리보기는 화면에 계속 떠 있으므로 URL을 바로 해제하지 않음
+                return;
+            }
+            // 이미지가 아닌 파일(JSON 등): 공유 우선, 안 되면 새 탭
+            if (navigator.canShare) {
+                const file = new File([blob], fileName, { type: blob.type });
+                if (navigator.canShare({ files: [file] })) {
+                    navigator.share({ files: [file], title: fileName })
+                        .catch(() => window.open(blobUrl, '_blank'))
+                        .finally(() => setTimeout(() => URL.revokeObjectURL(blobUrl), 4000));
+                    return;
+                }
+            }
+            // 공유 불가 시: 다운로드 시도 후 새 탭 폴백
+            const a = document.createElement('a');
+            a.href = blobUrl; a.download = fileName;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(() => {
+                window.open(blobUrl, '_blank');
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 4000);
+            }, 300);
+            return;
+        }
+
+        // PC: 표준 다운로드
+        const a = document.createElement('a');
+        a.href = blobUrl; a.download = fileName;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    }
+
+    // canvas -> blob 변환 (toBlob 사용, 폴백 포함)
+    function _canvasToBlob(canvas) {
+        return new Promise((resolve) => {
+            if (canvas.toBlob) {
+                canvas.toBlob((b) => resolve(b), 'image/png');
+            } else {
+                resolve(_dataURLToBytesToBlob(canvas.toDataURL('image/png')));
+            }
+        });
+    }
+    function _dataURLToBytesToBlob(dataURL) {
+        const bytes = _dataURLToBytes(dataURL);
+        return new Blob([bytes], { type: 'image/png' });
+    }
 
     // CRC32 테이블 (PNG 청크 CRC 계산용)
     const _crcTable = (() => {
@@ -611,7 +792,8 @@
 
         // === PNG에 JSON 데이터 숨겨 넣기 ===
         const dataURL = canvas.toDataURL('image/png');
-        let finalBlobUrl = dataURL;
+        const fileName = `한미모스_달력_${currentYear}_${currentMonth}.png`;
+        let finalBlob;
         try {
             const pngBytes = _dataURLToBytes(dataURL);
             const payload = JSON.stringify({
@@ -624,20 +806,13 @@
                 anniversaryData
             });
             const newBytes = _embedTextChunk(pngBytes, PNG_TEXT_KEYWORD, payload);
-            const blob = new Blob([newBytes], { type: 'image/png' });
-            finalBlobUrl = URL.createObjectURL(blob);
+            finalBlob = new Blob([newBytes], { type: 'image/png' });
         } catch (err) {
             console.warn('PNG에 데이터 임베드 실패, 원본 이미지로 저장합니다.', err);
+            finalBlob = _dataURLToBytesToBlob(dataURL);
         }
 
-        const link = document.createElement('a');
-        link.download = `한미모스_달력_${currentYear}_${currentMonth}.png`;
-        link.href = finalBlobUrl;
-        link.click();
-        // blob URL 메모리 해제
-        if (finalBlobUrl.startsWith('blob:')) {
-            setTimeout(() => URL.revokeObjectURL(finalBlobUrl), 1000);
-        }
+        _saveBlob(finalBlob, fileName, { isImage: true });
     }
 
     async function captureSummaryImage() {
@@ -687,10 +862,9 @@
         summaryDiv.innerHTML = contentHtml;
         document.body.appendChild(summaryDiv);
         const canvas = await html2canvas(summaryDiv, { scale: 2, backgroundColor: "#ffffff" });
-        const link = document.createElement('a');
-        link.download = `한미모스_요약_${currentYear}_${currentMonth}.png`;
-        link.href = canvas.toDataURL(); link.click();
         document.body.removeChild(summaryDiv);
+        const blob = await _canvasToBlob(canvas);
+        _saveBlob(blob, `한미모스_요약_${currentYear}_${currentMonth}.png`, { isImage: true });
     }
 
     function copyToClipboard() {
@@ -756,7 +930,15 @@
         const worksheet = XLSX.utils.aoa_to_sheet(rows);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "테니스 일정");
-        XLSX.writeFile(workbook, `한미모스_일정_${currentYear}_${currentMonth}.xlsx`);
+        const fileName = `한미모스_일정_${currentYear}_${currentMonth}.xlsx`;
+        if (_isMobile()) {
+            // 모바일: blob으로 만들어 공유 시트로 저장
+            const wbout = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            _saveBlob(blob, fileName, { isImage: false });
+        } else {
+            XLSX.writeFile(workbook, fileName);
+        }
     }
 
     // 백업 저장 파일명 수정 (YYMMDD_v01 형식)
@@ -786,10 +968,9 @@
         const namePart = safeName ? `${safeName}_` : '';
         const fileName = `한미모스_${namePart}${dateStr}_v${versionStr}.json`;
 
-        const link = document.createElement('a');
-        link.href = 'data:application/json;charset=utf-8,'+ encodeURIComponent(JSON.stringify({reservationData, customModes, anniversaryData}));
-        link.download = fileName;
-        link.click();
+        const jsonStr = JSON.stringify({reservationData, customModes, anniversaryData});
+        const blob = new Blob([jsonStr], { type: 'application/json' });
+        _saveBlob(blob, fileName, { isImage: false });
     }
 
     function importData(e) {
