@@ -884,6 +884,27 @@
         _saveBlob(blob, fileName, { isImage: false });
     }
 
+    // 불러온 데이터 중 현재 보고 있는 달(currentYear-currentMonth)의 항목만 남긴다.
+    function filterImportedToCurrentMonth(imported) {
+        const prefix = `${currentYear}-${currentMonth}-`;
+        // 키가 현재 달 소속인지 판단: "2026-6-" 으로 시작하는지 확인.
+        // (단, "2026-6-"이 "2026-60-"의 접두사가 되는 일은 없음 — 월은 1~12)
+        const inMonth = (key) => key.startsWith(prefix);
+
+        const pick = (obj) => {
+            const out = {};
+            Object.keys(obj || {}).forEach(k => { if (inMonth(k)) out[k] = obj[k]; });
+            return out;
+        };
+
+        return {
+            ...imported,
+            reservationData: pick(imported.reservationData),
+            customModes: pick(imported.customModes),
+            anniversaryData: pick(imported.anniversaryData),
+        };
+    }
+
     function importData(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -914,6 +935,20 @@
                     alert('파일을 읽을 수 없습니다. 올바른 백업 파일인지 확인해주세요.');
                     return;
                 }
+            }
+
+            // ▼ 현재 보고 있는 달의 데이터만 추려낸다.
+            //   키 형태: 코트예약 "2026-6-15-12-3" / 커스텀·기념일 "2026-6-15"
+            //   → 모두 "2026-6-" 로 시작하므로 접두사로 거른다.
+            imported = filterImportedToCurrentMonth(imported);
+
+            // 현재 달에 해당하는 데이터가 하나도 없으면 안내 후 종료
+            const importedHasData = Object.keys(imported.reservationData || {}).length > 0
+                                 || Object.keys(imported.customModes || {}).length > 0
+                                 || Object.keys(imported.anniversaryData || {}).length > 0;
+            if (!importedHasData) {
+                alert(`불러온 파일에 ${currentYear}년 ${currentMonth}월 데이터가 없습니다.\n달력을 해당 월로 이동한 뒤 다시 불러와 주세요.`);
+                return;
             }
 
             // 기존 데이터가 있는지 확인
@@ -947,9 +982,9 @@
         const desc = document.getElementById('import-desc');
         desc.style.display = 'block';
         desc.innerHTML = `
-            기존 데이터가 있습니다.<br>
-            <b style="color:#27ae60;">누적</b>: 기존 데이터에 합치며, 새로 불러온 칸은 다른 색으로 표시됩니다.<br>
-            <b style="color:#e67e22;">덮어쓰기</b>: 기존 데이터를 모두 지우고 새 데이터로 교체합니다.
+            <b>${currentYear}년 ${currentMonth}월</b> 데이터만 불러옵니다. (다른 달은 영향 없음)<br>
+            <b style="color:#27ae60;">누적</b>: ${currentMonth}월 기존 데이터에 합치며, 새로 불러온 칸은 다른 색으로 표시됩니다.<br>
+            <b style="color:#e67e22;">덮어쓰기</b>: ${currentMonth}월 기존 데이터만 지우고 새 데이터로 교체합니다.
         `;
 
         const container = document.getElementById('modal-btn-container');
@@ -960,7 +995,8 @@
         `;
         document.getElementById('btn-merge-act').onclick = () => { applyImport(imported, 'merge'); closeModal(); };
         document.getElementById('btn-overwrite-act').onclick = () => {
-            if (confirm('정말 기존 데이터를 모두 덮어쓸까요?')) { applyImport(imported, 'overwrite'); closeModal(); }
+            const msg = `⚠️ ${currentYear}년 ${currentMonth}월의 기존 데이터가 모두 삭제되고\n새로 불러온 데이터로 교체됩니다.\n\n삭제된 데이터는 되돌릴 수 없습니다.\n정말 덮어쓸까요?`;
+            if (confirm(msg)) { applyImport(imported, 'overwrite'); closeModal(); }
         };
         overlay.style.display = 'flex';
     }
@@ -971,15 +1007,32 @@
         const newAnniversary = imported.anniversaryData || {};
 
         if (mode === 'overwrite') {
-            // 모두 지우고 교체. 그룹은 1로 초기화
-            reservationData = newReservation;
-            customModes = newCustomModes;
-            anniversaryData = newAnniversary;
-            dataGroups = {};
-            nextGroupId = 1;
-            // 새로 불러온 모든 데이터를 그룹 1로 표시
-            assignGroupToAllData(1);
-            nextGroupId = 2;
+            // 현재 보고 있는 달만 교체하고, 다른 달 데이터는 그대로 둔다.
+            const prefix = `${currentYear}-${currentMonth}-`;
+            const inMonth = (k) => k.startsWith(prefix);
+
+            // 1) 현재 달 기존 항목 제거 (reservation / customModes / anniversary)
+            Object.keys(reservationData).forEach(k => { if (inMonth(k)) delete reservationData[k]; });
+            Object.keys(customModes).forEach(k => { if (inMonth(k)) delete customModes[k]; });
+            Object.keys(anniversaryData).forEach(k => { if (inMonth(k)) delete anniversaryData[k]; });
+            // 현재 달 관련 그룹 색상 정보도 함께 제거
+            Object.keys(dataGroups).forEach(k => { if (inMonth(k)) delete dataGroups[k]; });
+
+            // 2) 새 데이터(이미 현재 달로 필터링됨) 채워넣기
+            const groupId = nextGroupId;
+            nextGroupId += 1;
+            Object.keys(newReservation).forEach(k => {
+                reservationData[k] = newReservation[k];
+                const val = newReservation[k];
+                if (Array.isArray(val)) {
+                    val.forEach((_, idx) => { dataGroups[`${k}-custom-${idx}`] = groupId; });
+                } else {
+                    dataGroups[k] = groupId;
+                }
+            });
+            Object.keys(newCustomModes).forEach(k => { if (newCustomModes[k]) customModes[k] = true; });
+            Object.keys(newAnniversary).forEach(k => { anniversaryData[k] = newAnniversary[k]; });
+
             saveAndRender();
             return;
         }
