@@ -213,7 +213,7 @@
     <div class="btn-group">
         <button class="action-btn btn-save" onclick="exportData()">💾 백업 저장</button>
         <button class="action-btn btn-load" onclick="document.getElementById('fileInput').click()">📂 불러오기</button>
-        <input type="file" id="fileInput" style="display:none" accept=".json,.png,image/png,application/json" onchange="importData(event)">
+        <input type="file" id="fileInput" style="display:none" accept=".json,.png,image/png,application/json" multiple onchange="importData(event)">
     </div>
     </div>
 </div>
@@ -525,18 +525,12 @@
                         if (reservedName && !hiddenNames.has(reservedName)) { 
                             btn.innerText = reservedName; 
                             btn.classList.add('booked'); 
-                            const grp = dataGroups[key];
-                            if (grp) {
-                                // 누적 불러오기 그룹 색상이 지정된 칸은 기존 그룹 색 유지
-                                const colorIdx = ((grp - 1) % MAX_GROUP_COLORS) + 1;
-                                btn.classList.add(`group-${colorIdx}`);
-                            } else {
-                                // 직접 입력한 예약: 예약자 이름별 자동 색상
-                                const nc = getNameColor(reservedName);
-                                if (nc) {
-                                    btn.style.backgroundColor = nc.bg;
-                                    btn.style.color = nc.fg;
-                                }
+                            // 코트 예약 칸은 항상 예약자 이름별 자동 색상
+                            // (직접 입력이든 불러온 데이터든 동일하게 적용)
+                            const nc = getNameColor(reservedName);
+                            if (nc) {
+                                btn.style.backgroundColor = nc.bg;
+                                btn.style.color = nc.fg;
                             }
                         }
                         else btn.innerText = `C${c}`;
@@ -905,74 +899,171 @@
         };
     }
 
-    function importData(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+    // 파일 하나를 읽어 파싱된 데이터 객체를 반환 (Promise)
+    // 실패 시 { error: '사유', fileName } 반환
+    function readImportFile(file) {
+        return new Promise((resolve) => {
+            const isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
+            const reader = new FileReader();
 
-        const isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
-        const reader = new FileReader();
-
-        reader.onload = (le) => {
-            let imported;
-            if (isPng) {
-                // PNG에서 tEXt 청크로 숨겨둔 JSON 추출
-                try {
-                    const bytes = new Uint8Array(le.target.result);
-                    const text = _extractTextChunk(bytes, PNG_TEXT_KEYWORD);
-                    if (!text) {
-                        alert('이 PNG에는 한미모스 데이터가 포함되어 있지 않습니다.\n(달력형 저장으로 만든 이미지여야 불러올 수 있어요)');
-                        return;
+            reader.onload = (le) => {
+                if (isPng) {
+                    try {
+                        const bytes = new Uint8Array(le.target.result);
+                        const text = _extractTextChunk(bytes, PNG_TEXT_KEYWORD);
+                        if (!text) {
+                            resolve({ error: '한미모스 데이터가 없는 PNG', fileName: file.name });
+                            return;
+                        }
+                        resolve({ data: JSON.parse(text), fileName: file.name });
+                    } catch (err) {
+                        resolve({ error: 'PNG 읽기 실패', fileName: file.name });
                     }
-                    imported = JSON.parse(text);
-                } catch (err) {
-                    alert('PNG에서 데이터를 읽는 데 실패했습니다.');
-                    return;
+                } else {
+                    try {
+                        resolve({ data: JSON.parse(le.target.result), fileName: file.name });
+                    } catch (err) {
+                        resolve({ error: '올바른 백업 파일이 아님', fileName: file.name });
+                    }
                 }
-            } else {
-                try {
-                    imported = JSON.parse(le.target.result);
-                } catch (err) {
-                    alert('파일을 읽을 수 없습니다. 올바른 백업 파일인지 확인해주세요.');
-                    return;
-                }
-            }
+            };
+            reader.onerror = () => resolve({ error: '파일 읽기 오류', fileName: file.name });
 
-            // ▼ 현재 보고 있는 달의 데이터만 추려낸다.
-            //   키 형태: 코트예약 "2026-6-15-12-3" / 커스텀·기념일 "2026-6-15"
-            //   → 모두 "2026-6-" 로 시작하므로 접두사로 거른다.
-            imported = filterImportedToCurrentMonth(imported);
-
-            // 현재 달에 해당하는 데이터가 하나도 없으면 안내 후 종료
-            const importedHasData = Object.keys(imported.reservationData || {}).length > 0
-                                 || Object.keys(imported.customModes || {}).length > 0
-                                 || Object.keys(imported.anniversaryData || {}).length > 0;
-            if (!importedHasData) {
-                alert(`불러온 파일에 ${currentYear}년 ${currentMonth}월 데이터가 없습니다.\n달력을 해당 월로 이동한 뒤 다시 불러와 주세요.`);
-                return;
-            }
-
-            // 기존 데이터가 있는지 확인
-            const hasExistingData = Object.keys(reservationData).length > 0 
-                                 || Object.keys(customModes).length > 0 
-                                 || Object.keys(anniversaryData).length > 0;
-
-            if (!hasExistingData) {
-                // 기존 데이터가 없으면 그냥 덮어쓰기 (그룹 1로 시작)
-                applyImport(imported, 'overwrite');
-            } else {
-                // 선택 모달 표시
-                showImportChoiceModal(imported);
-            }
-        };
-
-        if (isPng) reader.readAsArrayBuffer(file);
-        else reader.readAsText(file);
-
-        // 같은 파일 다시 선택 가능하도록 input 초기화
-        e.target.value = '';
+            if (isPng) reader.readAsArrayBuffer(file);
+            else reader.readAsText(file);
+        });
     }
 
-    function showImportChoiceModal(imported) {
+    // 여러 파일에서 추출한 (현재 달로 필터링된) 데이터 묶음을 하나로 합친다.
+    // 코트 예약 칸이 파일끼리 겹치면 나중 파일이 우선하며, 겹친 내역을 기록한다.
+    // 반환: { merged, fileConflicts }
+    //   fileConflicts: [{ key, label, values:[파일순서대로 값들], finalValue }]
+    function combineImported(list) {
+        const merged = { reservationData: {}, customModes: {}, anniversaryData: {} };
+        // 코트 칸별로 어떤 값들이 들어왔는지 추적 (파일 간 충돌 감지용)
+        const courtSeen = {}; // key -> [val1, val2, ...]
+
+        list.forEach(imported => {
+            const r = imported.reservationData || {};
+            Object.keys(r).forEach(k => {
+                const val = r[k];
+                if (Array.isArray(val)) {
+                    // 커스텀 모드 항목: 기존 배열에 이어붙이되 동일 항목은 중복 제거
+                    if (!Array.isArray(merged.reservationData[k])) merged.reservationData[k] = [];
+                    const arr = merged.reservationData[k];
+                    val.forEach(item => {
+                        const dup = arr.some(e => e.time === item.time && e.place === item.place && e.court === item.court);
+                        if (!dup) arr.push(item);
+                    });
+                } else {
+                    // 일반 코트 예약: 나중 파일 값으로 덮어씀 + 충돌 추적
+                    if (!courtSeen[k]) courtSeen[k] = [];
+                    courtSeen[k].push(val);
+                    merged.reservationData[k] = val;
+                }
+            });
+            const c = imported.customModes || {};
+            Object.keys(c).forEach(k => { if (c[k]) merged.customModes[k] = true; });
+            const a = imported.anniversaryData || {};
+            Object.keys(a).forEach(k => { merged.anniversaryData[k] = a[k]; });
+        });
+
+        // 같은 칸에 서로 다른 값이 2개 이상 들어온 경우만 파일 간 충돌로 기록
+        const fileConflicts = [];
+        Object.keys(courtSeen).forEach(k => {
+            const vals = courtSeen[k];
+            const distinct = [...new Set(vals)];
+            if (distinct.length > 1) {
+                fileConflicts.push({
+                    key: k,
+                    label: formatCourtLabel(k),
+                    values: vals,
+                    finalValue: vals[vals.length - 1]
+                });
+            }
+        });
+
+        return { merged, fileConflicts };
+    }
+
+    async function importData(e) {
+        const files = Array.from(e.target.files || []);
+        // 같은 파일 다시 선택 가능하도록 input 초기화 (먼저 비워둔다)
+        e.target.value = '';
+        if (files.length === 0) return;
+
+        // 1) 모든 파일을 병렬로 읽는다
+        const results = await Promise.all(files.map(readImportFile));
+
+        // 2) 성공/실패 분류
+        const okResults = results.filter(r => r.data);
+        const failed = results.filter(r => r.error);
+
+        if (okResults.length === 0) {
+            alert('불러올 수 있는 파일이 없습니다.\n' +
+                  failed.map(f => `· ${f.fileName}: ${f.error}`).join('\n'));
+            return;
+        }
+
+        // 3) 각 파일을 현재 보고 있는 달로 필터링
+        const filteredList = okResults.map(r => filterImportedToCurrentMonth(r.data));
+
+        // 4) 현재 달 데이터가 들어있는 파일만 추린다
+        const usable = [];
+        const emptyFileNames = [];
+        filteredList.forEach((f, i) => {
+            const has = Object.keys(f.reservationData || {}).length > 0
+                     || Object.keys(f.customModes || {}).length > 0
+                     || Object.keys(f.anniversaryData || {}).length > 0;
+            if (has) usable.push(f);
+            else emptyFileNames.push(okResults[i].fileName);
+        });
+
+        if (usable.length === 0) {
+            alert(`선택한 파일에 ${currentYear}년 ${currentMonth}월 데이터가 없습니다.\n` +
+                  `달력을 해당 월로 이동한 뒤 다시 불러와 주세요.`);
+            return;
+        }
+
+        // 5) 여러 파일을 하나로 합친다
+        const combined = combineImported(usable);
+        const imported = combined.merged;
+        const fileConflicts = combined.fileConflicts;
+
+        // 6) 건너뛴 파일 / 파일 간 충돌을 미리 알려준다
+        const notices = [];
+        if (failed.length > 0) {
+            notices.push('읽지 못한 파일: ' + failed.map(f => f.fileName).join(', '));
+        }
+        if (emptyFileNames.length > 0) {
+            notices.push(`${currentMonth}월 데이터가 없어 제외된 파일: ` + emptyFileNames.join(', '));
+        }
+        if (fileConflicts.length > 0) {
+            // 방안 2: 파일끼리 겹친 칸을 요약으로 알림 (나중 파일 값으로 정리됨)
+            const lines = fileConflicts.slice(0, 10).map(c =>
+                `· ${c.label}: ${[...new Set(c.values)].join(' / ')} → ${c.finalValue}`);
+            let conflictMsg = `여러 파일에서 같은 칸이 ${fileConflicts.length}건 겹쳤습니다.\n` +
+                              `나중에 선택한 파일의 값으로 정리했습니다.\n\n` + lines.join('\n');
+            if (fileConflicts.length > 10) conflictMsg += `\n…외 ${fileConflicts.length - 10}건`;
+            notices.push(conflictMsg);
+        }
+        if (notices.length > 0) {
+            alert(`${usable.length}개 파일을 불러옵니다.\n\n` + notices.join('\n\n'));
+        }
+
+        // 7) 기존 데이터 유무에 따라 처리
+        const hasExistingData = Object.keys(reservationData).length > 0 
+                             || Object.keys(customModes).length > 0 
+                             || Object.keys(anniversaryData).length > 0;
+
+        if (!hasExistingData) {
+            applyImport(imported, 'overwrite', fileConflicts);
+        } else {
+            showImportChoiceModal(imported, fileConflicts);
+        }
+    }
+
+    function showImportChoiceModal(imported, fileConflicts = []) {
         const overlay = document.getElementById('modal-overlay');
         document.getElementById('modal-title').innerText = "불러오기 방식 선택";
         document.getElementById('normal-inputs').style.display = 'none';
@@ -993,15 +1084,15 @@
             <button class="m-btn m-overwrite" id="btn-overwrite-act">덮어쓰기</button>
             <button class="m-btn m-cancel" onclick="closeModal()">취소</button>
         `;
-        document.getElementById('btn-merge-act').onclick = () => { applyImport(imported, 'merge'); closeModal(); };
+        document.getElementById('btn-merge-act').onclick = () => { applyImport(imported, 'merge', fileConflicts); closeModal(); };
         document.getElementById('btn-overwrite-act').onclick = () => {
             const msg = `⚠️ ${currentYear}년 ${currentMonth}월의 기존 데이터가 모두 삭제되고\n새로 불러온 데이터로 교체됩니다.\n\n삭제된 데이터는 되돌릴 수 없습니다.\n정말 덮어쓸까요?`;
-            if (confirm(msg)) { applyImport(imported, 'overwrite'); closeModal(); }
+            if (confirm(msg)) { applyImport(imported, 'overwrite', fileConflicts); closeModal(); }
         };
         overlay.style.display = 'flex';
     }
 
-    function applyImport(imported, mode) {
+    function applyImport(imported, mode, fileConflicts = []) {
         const newReservation = imported.reservationData || {};
         const newCustomModes = imported.customModes || {};
         const newAnniversary = imported.anniversaryData || {};
@@ -1037,15 +1128,16 @@
             return;
         }
 
-        // 누적 모드: 먼저 중복 감지
+        // 누적 모드: 먼저 중복 감지 (기존 데이터 vs 불러온 데이터)
         const conflicts = detectConflicts(newReservation, newAnniversary);
 
-        if (conflicts.length === 0) {
+        if (conflicts.length === 0 && fileConflicts.length === 0) {
             // 중복 없음 → 바로 누적
             performMerge(imported, 'replace'); // 어차피 중복이 없으니 둘 다 동일
         } else {
             // 중복 있음 → 모달로 사용자에게 물어보기
-            showConflictModal(conflicts, imported);
+            // (fileConflicts는 파일끼리 겹쳐 이미 정리된 항목 — 안내용으로 함께 표시)
+            showConflictModal(conflicts, imported, fileConflicts);
         }
     }
 
@@ -1121,40 +1213,103 @@
         return key;
     }
 
-    function showConflictModal(conflicts, imported) {
+    function showConflictModal(conflicts, imported, fileConflicts = []) {
         const overlay = document.getElementById('conflict-overlay');
         const desc = document.getElementById('conflict-desc');
         const list = document.getElementById('conflict-list');
 
-        desc.innerHTML = `중복된 항목이 <b>${conflicts.length}건</b> 있습니다. 어떻게 처리할까요?<br>
-            <span style="color:#7f8c8d;">• <b>기존 유지</b>: 중복 항목은 무시하고 새로운 것만 추가합니다.</span><br>
-            <span style="color:#e67e22;">• <b>새 데이터로 덮어쓰기</b>: 중복 항목을 새 파일의 값으로 교체합니다.</span>`;
+        // 안내 문구: 기존 데이터 충돌이 있을 때와 없을 때를 구분
+        if (conflicts.length > 0) {
+            desc.innerHTML = `기존 데이터와 중복된 항목이 <b>${conflicts.length}건</b> 있습니다. 어떻게 처리할까요?<br>
+                <span style="color:#7f8c8d;">• <b>기존 유지</b>: 중복 항목은 무시하고 새로운 것만 추가합니다.</span><br>
+                <span style="color:#e67e22;">• <b>새 데이터로 덮어쓰기</b>: 중복 항목을 새 파일의 값으로 교체합니다.</span>`;
+        } else {
+            desc.innerHTML = `불러온 파일끼리 겹친 칸이 있어 안내드립니다.<br>
+                <span style="color:#7f8c8d;">아래 항목은 나중에 선택한 파일의 값으로 이미 정리되었습니다.</span>`;
+        }
 
         list.innerHTML = '';
-        conflicts.forEach(c => {
-            const item = document.createElement('div');
-            item.className = 'conflict-item';
-            item.innerHTML = `
-                <div class="conflict-item-header">${c.label}</div>
-                <div>
-                    <span class="conflict-old">기존: ${escapeHtml(c.oldValue)}</span>
-                    <span class="conflict-arrow">→</span>
-                    <span class="conflict-new">새 파일: ${escapeHtml(c.newValue)}</span>
-                </div>
-            `;
-            list.appendChild(item);
-        });
 
-        document.getElementById('btn-keep-existing').onclick = () => {
+        // (1) 파일끼리 겹친 항목 — 안내용 (선택 대상 아님, 이미 정리됨)
+        if (fileConflicts.length > 0) {
+            const sec = document.createElement('div');
+            sec.className = 'conflict-section-title';
+            sec.style.cssText = 'font-weight:bold;margin:6px 0;color:#2980b9;';
+            sec.textContent = `📑 여러 파일에서 겹친 칸 (${fileConflicts.length}건) — 자동 정리됨`;
+            list.appendChild(sec);
+
+            fileConflicts.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'conflict-item';
+                const others = [...new Set(c.values)].filter(v => v !== c.finalValue);
+                item.innerHTML = `
+                    <div class="conflict-item-header">${c.label}</div>
+                    <div>
+                        <span class="conflict-old">겹친 값: ${escapeHtml(others.join(', '))}</span>
+                        <span class="conflict-arrow">→</span>
+                        <span class="conflict-new">적용: ${escapeHtml(c.finalValue)}</span>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        // (2) 기존 데이터와의 중복 — 사용자 선택 대상
+        if (conflicts.length > 0) {
+            if (fileConflicts.length > 0) {
+                const sec = document.createElement('div');
+                sec.style.cssText = 'font-weight:bold;margin:12px 0 6px;color:#e67e22;';
+                sec.textContent = `⚠️ 기존 데이터와 중복 (${conflicts.length}건) — 선택 필요`;
+                list.appendChild(sec);
+            }
+            conflicts.forEach(c => {
+                const item = document.createElement('div');
+                item.className = 'conflict-item';
+                item.innerHTML = `
+                    <div class="conflict-item-header">${c.label}</div>
+                    <div>
+                        <span class="conflict-old">기존: ${escapeHtml(c.oldValue)}</span>
+                        <span class="conflict-arrow">→</span>
+                        <span class="conflict-new">새 파일: ${escapeHtml(c.newValue)}</span>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+        }
+
+        const keepBtn = document.getElementById('btn-keep-existing');
+        const replaceBtn = document.getElementById('btn-replace-new');
+        const cancelBtn = document.getElementById('btn-conflict-cancel');
+
+        if (conflicts.length > 0) {
+            // 기존 데이터 충돌 → 선택 버튼 사용
+            keepBtn.style.display = '';
+            replaceBtn.style.display = '';
+            replaceBtn.textContent = '새 데이터로 덮어쓰기';
+            keepBtn.onclick = () => {
+                overlay.style.display = 'none';
+                performMerge(imported, 'keep', conflicts);
+            };
+            replaceBtn.onclick = () => {
+                overlay.style.display = 'none';
+                performMerge(imported, 'replace', conflicts);
+            };
+        } else {
+            // 파일 간 충돌만 있는 경우 → 안내만, '확인'으로 바로 누적
+            keepBtn.style.display = 'none';
+            replaceBtn.style.display = '';
+            replaceBtn.textContent = '확인';
+            replaceBtn.onclick = () => {
+                overlay.style.display = 'none';
+                replaceBtn.textContent = '새 데이터로 덮어쓰기';
+                performMerge(imported, 'replace', []);
+            };
+        }
+        cancelBtn.onclick = () => {
             overlay.style.display = 'none';
-            performMerge(imported, 'keep', conflicts);
-        };
-        document.getElementById('btn-replace-new').onclick = () => {
-            overlay.style.display = 'none';
-            performMerge(imported, 'replace', conflicts);
-        };
-        document.getElementById('btn-conflict-cancel').onclick = () => {
-            overlay.style.display = 'none';
+            replaceBtn.textContent = '새 데이터로 덮어쓰기';
+            replaceBtn.style.display = '';
+            keepBtn.style.display = '';
         };
 
         overlay.style.display = 'flex';
