@@ -408,6 +408,80 @@
         renderCalendar();
     }
 
+    // ===== 같은 코트 주간 예약 횟수 체크 =====
+    // 키 형식: "2026-6-15-08-2" = 연-월-일-시작시간-코트번호
+    // 한 주의 기준: 일요일 ~ 토요일 (달력이 일요일 시작)
+
+    // 날짜로 그 주의 일요일을 식별하는 문자열을 만든다 (주 식별자)
+    function _weekIdOf(year, month, day) {
+        const dt = new Date(year, month - 1, day);
+        dt.setDate(dt.getDate() - dt.getDay()); // 그 주 일요일로 이동
+        return `${dt.getFullYear()}-${dt.getMonth() + 1}-${dt.getDate()}`;
+    }
+
+    // 특정 사람이 특정 코트번호로 특정 주에 예약한 칸 목록을 구한다.
+    // excludeKey: 검사 대상 칸 자신은 카운트에서 제외
+    function getSameCourtWeekBookings(name, courtNo, weekId, excludeKey) {
+        const hits = [];
+        Object.keys(reservationData).forEach(k => {
+            if (k === excludeKey) return;
+            if (reservationData[k] !== name) return;
+            const p = k.split('-');
+            if (p.length < 5) return; // 커스텀 모드 등 일반 예약 키가 아님
+            const [y, mo, d, start, court] = p;
+            if (court !== String(courtNo)) return;
+            if (_weekIdOf(parseInt(y), parseInt(mo), parseInt(d)) !== weekId) return;
+            hits.push({ key: k, day: parseInt(d), start: start });
+        });
+        return hits;
+    }
+
+    // 예약을 저장하기 전에 호출. 규칙 위반 시 confirm 팝업을 띄운다.
+    // 저장을 진행해도 되면 true, 사용자가 취소하면 false 반환.
+    function confirmWeeklyLimit(key, name) {
+        const p = key.split('-');
+        if (p.length < 5) return true; // 일반 코트 예약이 아니면 검사 안 함
+        const [y, mo, d, start, courtNo] = p;
+        const weekId = _weekIdOf(parseInt(y), parseInt(mo), parseInt(d));
+
+        // 이 사람이 같은 코트번호로 같은 주에 이미 잡아둔 (다른 시간대) 예약들
+        const existing = getSameCourtWeekBookings(name, courtNo, weekId, key);
+
+        // 같은 시간대 중복은 제외하고, "다른 시간대" 예약만 센다
+        const otherTimeBookings = existing.filter(b => b.start !== start);
+        const countWithThis = otherTimeBookings.length + 1; // 이번 예약 포함
+
+        // 규칙 2: 같은 코트 한 주 4회 이상
+        if (countWithThis >= 4) {
+            const lines = otherTimeBookings
+                .sort((a, b) => a.day - b.day || parseInt(a.start) - parseInt(b.start))
+                .map(b => `${b.day}일 ${parseInt(b.start)}시`)
+                .join(', ');
+            return confirm(
+                `⚠️ 한 주 예약 횟수 초과\n\n` +
+                `${name} 님은 코트${courtNo}번을 이번 주에 ${countWithThis}회 예약하게 됩니다.\n` +
+                `(기존: ${lines})\n\n` +
+                `한 주 4회 이상은 초과입니다. 계속 저장할까요?`
+            );
+        }
+
+        // 규칙 1: 같은 코트, 같은 주, 다른 시간대로 2회 이상
+        if (countWithThis >= 2) {
+            const lines = otherTimeBookings
+                .sort((a, b) => a.day - b.day || parseInt(a.start) - parseInt(b.start))
+                .map(b => `${b.day}일 ${parseInt(b.start)}시`)
+                .join(', ');
+            return confirm(
+                `⚠️ 한 주 주말 예약 횟수 초과\n\n` +
+                `${name} 님은 코트${courtNo}번을 이번 주에 다른 시간대로 ${countWithThis}회 예약하게 됩니다.\n` +
+                `(기존: ${lines})\n\n` +
+                `진짜 예약하시겠습니까?`
+            );
+        }
+
+        return true;
+    }
+
     function handleCourtClick(key) {
         const existingName = reservationData[key];
         // 필터로 숨겨진 칸을 클릭한 경우: 모달로 띄워 사용자가 인지하게 함
@@ -423,6 +497,8 @@
                 delete reservationData[key];
                 delete dataGroups[key];
             } else {
+                // 같은 코트 주간 예약 횟수 체크 (초과 시 확인 팝업)
+                if (!confirmWeeklyLimit(key, quickName)) return;
                 reservationData[key] = quickName;
                 delete dataGroups[key]; // 직접 입력은 그룹 색상 없음
             }
@@ -777,7 +853,44 @@
         _saveBlob(blob, `한미모스_요약_${currentYear}_${currentMonth}.png`, { isImage: true });
     }
 
+    // 📋 텍스트 복사 — 날짜별 / 사람별 선택 모달
     function copyToClipboard() {
+        const overlay = document.getElementById('modal-overlay');
+        document.getElementById('modal-title').innerText = "텍스트 복사 방식 선택";
+        document.getElementById('normal-inputs').style.display = 'none';
+        document.getElementById('custom-inputs').style.display = 'none';
+        document.getElementById('anni-inputs').style.display = 'none';
+
+        const desc = document.getElementById('import-desc');
+        desc.style.display = 'block';
+        desc.innerHTML = `
+            <b>날짜별</b>: 날짜 순서대로 시간·코트·예약자를 정리합니다.<br>
+            <b>사람별</b>: 예약자 이름별로 그 사람이 예약한 날짜와 코트를 모아 정리합니다.
+        `;
+
+        const container = document.getElementById('modal-btn-container');
+        container.innerHTML = `
+            <button class="m-btn m-merge" id="btn-copy-bydate">날짜별</button>
+            <button class="m-btn m-overwrite" id="btn-copy-byperson">사람별</button>
+            <button class="m-btn m-cancel" onclick="closeModal()">취소</button>
+        `;
+        document.getElementById('btn-copy-bydate').onclick = () => { closeModal(); doCopyText('date'); };
+        document.getElementById('btn-copy-byperson').onclick = () => { closeModal(); doCopyText('person'); };
+        overlay.style.display = 'flex';
+    }
+
+    function doCopyText(mode) {
+        const text = (mode === 'person') ? buildTextByPerson() : buildTextByDate();
+        navigator.clipboard.writeText(text)
+            .then(() => alert("일정이 텍스트로 복사되었습니다!"))
+            .catch(() => {
+                // 클립보드 권한이 없을 때: 직접 복사할 수 있도록 표시
+                prompt("아래 내용을 길게 눌러 복사하세요:", text);
+            });
+    }
+
+    // 날짜별 정리 (기존 방식 그대로)
+    function buildTextByDate() {
         let text = `🎾 한미모스 신정교 코트 ${currentMonth}월 일정\n\n`;
         const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
         let hasData = false;
@@ -805,7 +918,66 @@
             if(dayText) { text += dayText; hasData = true; }
         }
         if(!hasData) text += "등록된 일정이 없습니다.";
-        navigator.clipboard.writeText(text).then(() => alert("일정이 텍스트로 복사되었습니다!"));
+        return text;
+    }
+
+    // 사람별 정리 — 예약자별로 그 사람이 예약한 날짜·시간·코트를 모은다.
+    function buildTextByPerson() {
+        let text = `🎾 한미모스 신정교 코트 ${currentMonth}월 일정 (사람별)\n\n`;
+        const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+
+        // person -> [{ d, start, court }]  (커스텀 모드 날짜는 이름이 없어 제외)
+        const byPerson = {};
+        for(let d=1; d<=daysInMonth; d++) {
+            const dateKey = `${currentYear}-${currentMonth}-${d}`;
+            if(customModes[dateKey]) continue; // 커스텀 일정은 예약자 이름이 없음
+            timeSlots.forEach(time => {
+                const start = time.split('-')[0];
+                for(let c=1; c<=3; c++) {
+                    const name = reservationData[`${dateKey}-${start}-${c}`];
+                    if(name) {
+                        if(!byPerson[name]) byPerson[name] = [];
+                        byPerson[name].push({ d, start: parseInt(start), court: c });
+                    }
+                }
+            });
+        }
+
+        const persons = Object.keys(byPerson);
+        if(persons.length === 0) return text + "등록된 일정이 없습니다.";
+
+        // 이름 가나다순 정렬
+        persons.sort((a, b) => a.localeCompare(b, 'ko'));
+
+        persons.forEach(name => {
+            const slots = byPerson[name];
+            // 날짜 → 시간 순으로 정렬
+            slots.sort((a, b) => a.d - b.d || a.start - b.start || a.court - b.court);
+
+            text += `■ ${name} (${slots.length}건)\n`;
+
+            // 같은 날짜+같은 시간의 여러 코트는 한 줄로 묶는다
+            const lineMap = {}; // "d-start" -> [court...]
+            slots.forEach(s => {
+                const k = `${s.d}-${s.start}`;
+                if(!lineMap[k]) lineMap[k] = [];
+                lineMap[k].push(s.court);
+            });
+            Object.keys(lineMap)
+                .sort((a, b) => {
+                    const [da, ta] = a.split('-').map(Number);
+                    const [db, tb] = b.split('-').map(Number);
+                    return da - db || ta - tb;
+                })
+                .forEach(k => {
+                    const [d, start] = k.split('-').map(Number);
+                    const courts = lineMap[k].sort((x, y) => x - y).join(',');
+                    text += `  ${currentMonth}/${d} [${start}시] 코트${courts}\n`;
+                });
+            text += `\n`;
+        });
+
+        return text.trimEnd();
     }
 
     function downloadExcel() {
@@ -1486,7 +1658,14 @@
 
     function saveNormal() { 
         const val = document.getElementById('modal-input').value.trim(); 
-        if(val) reservationData[activeKey] = val.substring(0, 2); 
+        if(val) {
+            const name = val.substring(0, 2);
+            // 이름이 새로 들어가거나 바뀔 때만 주간 횟수 체크
+            if (reservationData[activeKey] !== name) {
+                if (!confirmWeeklyLimit(activeKey, name)) return; // 취소 시 모달 유지
+            }
+            reservationData[activeKey] = name;
+        }
         else { delete reservationData[activeKey]; delete dataGroups[activeKey]; }
         localStorage.setItem('dataGroups', JSON.stringify(dataGroups));
         finalSave(); 
