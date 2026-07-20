@@ -1,0 +1,7 @@
+# 비밀 정보 — 절대 커밋 금지
+telegram.json
+
+# 로컬 실행 산출물
+court_state.json
+dump_*.html
+__pycache__/

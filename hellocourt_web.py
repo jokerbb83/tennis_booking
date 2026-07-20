@@ -43,8 +43,21 @@ MONTHS_AHEAD = 2
 CHECK_INTERVAL_SEC = 90
 STATE_FILE = Path("court_state.json")
 
-TELEGRAM_BOT_TOKEN = ""
-TELEGRAM_CHAT_ID = ""
+# 텔레그램 설정 — 저장소에 토큰이 노출되지 않도록 코드 밖에서 읽습니다.
+# 방법 1(권장): 같은 폴더에 telegram.json 생성 (git에 올리지 말 것)
+#   {"token": "1234567:AAH...", "chat_id": "987654321"}
+# 방법 2: 환경변수 TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID
+import os
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+_tg_file = Path(__file__).with_name("telegram.json")
+if _tg_file.exists():
+    try:
+        _tg = json.loads(_tg_file.read_text(encoding="utf-8"))
+        TELEGRAM_BOT_TOKEN = _tg.get("token", TELEGRAM_BOT_TOKEN)
+        TELEGRAM_CHAT_ID = str(_tg.get("chat_id", TELEGRAM_CHAT_ID))
+    except Exception as e:
+        print(f"[telegram.json 읽기 실패] {e}")
 
 URL_TMPL = (
     "https://sports.gangseo.seoul.kr/fmcs/28"
