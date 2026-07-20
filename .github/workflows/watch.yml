@@ -3,7 +3,7 @@ name: court-watch
 on:
   schedule:
     - cron: "*/5 * * * *"   # 5분마다 (GitHub 사정에 따라 실제로는 5~15분 간격)
-  workflow_dispatch:          # Actions 탭에서 수동 실행 버튼
+  workflow_dispatch:          # Actions 탭에서 수동 실행 버튼https://github.com/jokerbb83/tennis_booking/tree/main/.github%20
 
 permissions:
   contents: write
