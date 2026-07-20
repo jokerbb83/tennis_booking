@@ -1,0 +1,50 @@
+name: court-watch
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # 5분마다 (GitHub 사정에 따라 실제로는 5~15분 간격)
+  workflow_dispatch:          # Actions 탭에서 수동 실행 버튼
+
+permissions:
+  contents: write
+
+concurrency:
+  group: court-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-chromium-${{ runner.os }}
+
+      - name: Install dependencies
+        run: |
+          pip install playwright
+          playwright install --with-deps chromium
+
+      - name: Run monitor
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python monitor.py
+
+      - name: Commit status.json
+        run: |
+          git config user.name "court-bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add status.json
+          git diff --cached --quiet || git commit -m "status update"
+          git pull --rebase origin main
+          git push
