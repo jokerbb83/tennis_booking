@@ -92,7 +92,7 @@
 
   <footer>
     GitHub Actions가 약 5분 간격으로 자동 조회하며, 새 빈자리는 텔레그램으로 전송됩니다.<br>
-    텔레그램 봇에게 <b>끄기</b> / <b>켜기</b> / <b>상태</b> 를 보내 감시를 제어할 수 있습니다 (반영까지 최대 5분).<br>
+    텔레그램 봇 명령: <b>끄기</b> / <b>켜기</b> / <b>상태</b> / <b>필터 주말 17-21</b> · <b>필터 평일 19</b> · <b>필터 7/25</b> · <b>필터 해제</b> (반영까지 최대 5분)<br>
     항목을 누르면 <a href="https://sports.gangseo.seoul.kr/fmcs/28" target="_blank">강서구 예약 사이트</a>가 열립니다.
   </footer>
 </div>
@@ -121,15 +121,32 @@ async function load() {
   meta.classList.toggle("stale", s.enabled !== false && ageMin > 20);
   if (s.enabled !== false && ageMin > 20) meta.innerHTML += " · 갱신 지연 중";
 
-  // 빈자리 전체
+  // 빈자리 전체 (필터 통과 여부 표시)
+  const filt = s.filter || null;
+  function passes(dstr, t) {
+    if (!filt) return true;
+    const dt = new Date(dstr.slice(0,4), dstr.slice(4,6)-1, dstr.slice(6,8));
+    const wd = (dt.getDay() + 6) % 7;  // 월=0 … 일=6
+    if (filt.weekdays || filt.dates) {
+      let ok = false;
+      if (filt.weekdays && filt.weekdays.includes(wd)) ok = true;
+      if (filt.dates && filt.dates.includes(dstr.slice(4))) ok = true;
+      if (!ok) return false;
+    }
+    if (filt.hours && !filt.hours.includes(parseInt(t))) return false;
+    return true;
+  }
   const all = [];
   for (const [name, c] of Object.entries(s.courts))
-    for (const sl of c.slots) all.push({ name, ...sl });
-  all.sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time));
+    for (const sl of c.slots) all.push({ name, ...sl, hit: passes(sl.date, sl.time) });
+  all.sort((a, b) => (b.hit - a.hit) || (a.date + a.time).localeCompare(b.date + b.time));
+  const eyebrow = document.querySelector(".hero .eyebrow");
+  eyebrow.textContent = "지금 잡을 수 있는 빈자리" +
+    (s.filter_desc && filt ? ` · 알림 필터: ${s.filter_desc}` : "");
   document.getElementById("vacancies").innerHTML = all.length
-    ? all.map(x => `<a class="vacancy" href="${RESERVE_URL}" target="_blank">
+    ? all.map(x => `<a class="vacancy" href="${RESERVE_URL}" target="_blank" style="${x.hit ? "" : "opacity:.45"}">
         <span class="when">${x.label.split(" ")[1]}</span>
-        <span class="court">${x.label.split(" ")[0]} · ${x.name} 코트</span>
+        <span class="court">${x.label.split(" ")[0]} · ${x.name} 코트${x.hit ? "" : " (필터 밖)"}</span>
         <span class="go">예약하러 가기 →</span></a>`).join("")
     : `<div class="none">현재 없음</div>`;
 

@@ -85,11 +85,94 @@ OFF_WORDS = ("끄기", "꺼", "정지", "중지", "/off", "off", "stop")
 ON_WORDS = ("켜기", "켜", "시작", "/on", "on", "start")
 STATUS_WORDS = ("상태", "/status", "status")
 
+# ---- 알림 필터 ----
+# 텔레그램 명령 예:
+#   필터 토 일            → 토·일요일만
+#   필터 주말 17-21       → 주말 17:00~21:00 시작 슬롯만
+#   필터 평일 19          → 평일 19:00~21:00만
+#   필터 7/25 7/26        → 특정 날짜만
+#   필터 해제             → 필터 없음(전체 알림)
+#   필터                  → 현재 필터 보기
 
-def check_telegram_commands(enabled: bool, offset: int) -> tuple[bool, int, bool]:
-    """봇에게 온 켜기/끄기/상태 명령 처리. (enabled, new_offset, status_requested) 반환"""
+WD_CHARS = {"월": 0, "화": 1, "수": 2, "목": 3, "금": 4, "토": 5, "일": 6}
+SLOT_STARTS = (7, 9, 11, 13, 15, 17, 19)
+
+
+def parse_filter(text: str) -> dict | None:
+    """'필터 ...' 명령을 필터 dict로. 해제면 {}, 형식 오류면 None"""
+    import re
+    body = text.replace("필터", "", 1).strip()
+    if body in ("해제", "삭제", "없음", "off", "reset"):
+        return {}
+    wd, hours, dates = set(), set(), set()
+    for tok in body.split():
+        if tok in ("주말",):
+            wd |= {5, 6}
+        elif tok in ("평일",):
+            wd |= {0, 1, 2, 3, 4}
+        elif all(ch in WD_CHARS for ch in tok.replace(",", "")):
+            for ch in tok.replace(",", ""):
+                wd.add(WD_CHARS[ch])
+        elif re.fullmatch(r"\d{1,2}[/.]\d{1,2}", tok):          # 7/25
+            m, d = re.split(r"[/.]", tok)
+            dates.add(f"{int(m):02d}{int(d):02d}")
+        elif re.fullmatch(r"\d{1,2}\s*[-~]\s*\d{1,2}", tok):     # 17-21
+            a, b = re.split(r"[-~]", tok)
+            a, b = int(a), int(b)
+            hours |= {h for h in SLOT_STARTS if a <= h < b}
+        elif re.fullmatch(r"\d{1,2}(:\d{2})?", tok):             # 19 또는 19:00
+            hours.add(int(tok.split(":")[0]))
+        else:
+            return None
+    if not (wd or hours or dates):
+        return None
+    f = {}
+    if wd: f["weekdays"] = sorted(wd)
+    if hours: f["hours"] = sorted(hours)
+    if dates: f["dates"] = sorted(dates)
+    return f
+
+
+def filter_desc(f: dict | None) -> str:
+    if not f:
+        return "없음 (전체 알림)"
+    parts = []
+    if f.get("weekdays"):
+        parts.append("·".join(WEEKDAY_KO[w] for w in f["weekdays"]) + "요일")
+    if f.get("dates"):
+        parts.append(", ".join(f"{int(d[:2])}/{int(d[2:])}" for d in f["dates"]))
+    if f.get("hours"):
+        parts.append(", ".join(f"{h:02d}시" for h in f["hours"]) + " 시작")
+    return " / ".join(parts)
+
+
+def slot_passes(f: dict | None, d: str, t: str) -> bool:
+    """필터 f에 대해 날짜 d(YYYYMMDD)·시간 t('HH:MM~HH:MM') 슬롯 통과 여부"""
+    if not f:
+        return True
+    if f.get("weekdays") is not None or f.get("dates") is not None:
+        dt = date(int(d[:4]), int(d[4:6]), int(d[6:]))
+        ok_day = False
+        if f.get("weekdays") and dt.weekday() in f["weekdays"]:
+            ok_day = True
+        if f.get("dates") and d[4:] in f["dates"]:
+            ok_day = True
+        if not ok_day:
+            return False
+    if f.get("hours"):
+        try:
+            start_h = int(t.split(":")[0])
+        except ValueError:
+            return True
+        if start_h not in f["hours"]:
+            return False
+    return True
+
+
+def check_telegram_commands(enabled: bool, offset: int, filt: dict | None):
+    """켜기/끄기/상태/필터 명령 처리. (enabled, offset, status_requested, filt) 반환"""
     if not (TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID):
-        return enabled, offset, False
+        return enabled, offset, False, filt
     status_requested = False
     try:
         import urllib.request
@@ -99,21 +182,34 @@ def check_telegram_commands(enabled: bool, offset: int) -> tuple[bool, int, bool
             offset = max(offset, upd["update_id"])
             msg = upd.get("message", {})
             if str(msg.get("chat", {}).get("id", "")) != str(TELEGRAM_CHAT_ID):
-                continue  # 본인 외 무시
-            text = (msg.get("text") or "").strip().lower()
-            if any(w in text for w in OFF_WORDS):
+                continue
+            text = (msg.get("text") or "").strip()
+            low = text.lower()
+            if text.startswith("필터") or low.startswith("/filter"):
+                nf = parse_filter(text.replace("/filter", "필터", 1))
+                if nf is None and text.strip() not in ("필터", "/filter"):
+                    send_telegram(
+                        "필터 형식을 이해하지 못했어요.\n예)\n"
+                        "필터 주말\n필터 토 일 17-21\n필터 평일 19\n필터 7/25\n필터 해제"
+                    )
+                elif text.strip() in ("필터", "/filter"):
+                    send_telegram(f"현재 알림 필터: {filter_desc(filt)}")
+                else:
+                    filt = nf if nf else None
+                    send_telegram(f"알림 필터 설정: {filter_desc(filt)}")
+            elif any(w in low for w in OFF_WORDS):
                 if enabled:
                     enabled = False
                     send_telegram("감시를 껐습니다. 다시 켜려면 '켜기'라고 보내주세요.")
-            elif any(w in text for w in ON_WORDS):
+            elif any(w in low for w in ON_WORDS):
                 if not enabled:
                     enabled = True
                     send_telegram("감시를 다시 켰습니다. 🎾")
-            elif any(w in text for w in STATUS_WORDS):
+            elif any(w in low for w in STATUS_WORDS):
                 status_requested = True
     except Exception as e:
         print(f"[텔레그램 명령 확인 실패] {e}")
-    return enabled, offset, status_requested
+    return enabled, offset, status_requested, filt
 
 
 async def scan_month(page, url: str) -> list[tuple[str, str]]:
@@ -164,15 +260,17 @@ async def main():
     alerts = prev.get("alerts", [])
     enabled = prev.get("enabled", True)
     tg_offset = prev.get("tg_offset", 0)
+    filt = prev.get("filter") or None
 
-    # 텔레그램으로 온 켜기/끄기/상태 명령 처리
-    enabled, tg_offset, status_req = check_telegram_commands(enabled, tg_offset)
+    # 텔레그램으로 온 켜기/끄기/상태/필터 명령 처리
+    enabled, tg_offset, status_req, filt = check_telegram_commands(enabled, tg_offset, filt)
 
     if status_req:
         n = sum(len(c.get("slots", [])) for c in prev.get("courts", {}).values())
         send_telegram(
             f"감시 {'켜짐 🟢' if enabled else '꺼짐 ⚪'}\n"
-            f"현재 빈자리 {n}건 · 마지막 조회 {prev.get('updated_at', '-')}"
+            f"현재 빈자리 {n}건 · 마지막 조회 {prev.get('updated_at', '-')}\n"
+            f"알림 필터: {filter_desc(filt)}"
         )
 
     if not enabled:
@@ -180,6 +278,8 @@ async def main():
         STATUS_FILE.write_text(json.dumps({
             "updated_at": prev.get("updated_at", now_kst().strftime("%Y-%m-%d %H:%M:%S")),
             "enabled": False,
+            "filter": filt,
+            "filter_desc": filter_desc(filt),
             "courts": prev.get("courts", {}),
             "alerts": alerts[:50],
             "seen": sorted(seen),
@@ -220,6 +320,8 @@ async def main():
             print(f"[{name}] 빈자리 {len(courts[name]['slots'])}건")
 
             for d, t in all_slots:
+                if not slot_passes(filt, d, t):
+                    continue  # 필터 미통과: 알림 안 함 (필터 바꾸면 그때 알림됨)
                 key = f"{center}|{place}|{d}|{t}"
                 if key not in seen:
                     seen.add(key)
@@ -243,6 +345,8 @@ async def main():
     STATUS_FILE.write_text(json.dumps({
         "updated_at": now_kst().strftime("%Y-%m-%d %H:%M:%S"),
         "enabled": True,
+        "filter": filt,
+        "filter_desc": filter_desc(filt),
         "courts": courts,
         "alerts": alerts[:50],
         "seen": sorted(seen),
