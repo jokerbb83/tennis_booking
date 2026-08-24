@@ -1,12 +1,18 @@
 {
- "updated_at": "2026-08-24 20:03:09",
+ "updated_at": "2026-08-24 20:38:34",
  "enabled": true,
  "filter": null,
  "filter_desc": "없음 (전체 알림)",
  "courts": {
   "강서구립 3번": {
    "status": "정상",
-   "slots": []
+   "slots": [
+    {
+     "date": "20260825",
+     "time": "09:00~11:00",
+     "label": "8/25(화) 09:00~11:00"
+    }
+   ]
   },
   "강서구립 4번": {
    "status": "정상",
