@@ -1,39 +1,39 @@
 {
- "updated_at": "2026-09-05 08:16:25",
+ "updated_at": "2026-09-05 10:06:28",
  "enabled": true,
  "filter": null,
  "filter_desc": "없음 (전체 알림)",
  "courts": {
   "강서구립 3번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "강서구립 4번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "강서구립 5번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "강서구립 6번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "우장산 1번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "우장산 2번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "우장산 3번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "우장산 4번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   }
  },
