@@ -1,11 +1,11 @@
 {
- "updated_at": "2026-09-11 08:40:07",
+ "updated_at": "2026-09-11 10:28:27",
  "enabled": true,
  "filter": null,
  "filter_desc": "없음 (전체 알림)",
  "courts": {
   "강서구립 3번": {
-   "status": "일부 실패",
+   "status": "정상",
    "slots": []
   },
   "강서구립 4번": {
