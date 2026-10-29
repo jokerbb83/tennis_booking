@@ -1,5 +1,5 @@
 {
- "updated_at": "2026-10-29 16:12:06",
+ "updated_at": "2026-10-29 23:23:36",
  "enabled": true,
  "filter": null,
  "filter_desc": "없음 (전체 알림)",
@@ -21,19 +21,19 @@
    "slots": []
   },
   "우장산 1번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "우장산 2번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "우장산 3번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   },
   "우장산 4번": {
-   "status": "정상",
+   "status": "일부 실패",
    "slots": []
   }
  },
